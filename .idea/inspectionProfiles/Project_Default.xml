@@ -1,0 +1,48 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <value>
+          <list size="19">
+            <item index="0" class="java.lang.String" itemvalue="gensim" />
+            <item index="1" class="java.lang.String" itemvalue="numba" />
+            <item index="2" class="java.lang.String" itemvalue="scipy" />
+            <item index="3" class="java.lang.String" itemvalue="networkx" />
+            <item index="4" class="java.lang.String" itemvalue="arrow" />
+            <item index="5" class="java.lang.String" itemvalue="scikit_learn" />
+            <item index="6" class="java.lang.String" itemvalue="Bio" />
+            <item index="7" class="java.lang.String" itemvalue="setuptools" />
+            <item index="8" class="java.lang.String" itemvalue="numba_progress" />
+            <item index="9" class="java.lang.String" itemvalue="numpy" />
+            <item index="10" class="java.lang.String" itemvalue="psutil" />
+            <item index="11" class="java.lang.String" itemvalue="Logbook" />
+            <item index="12" class="java.lang.String" itemvalue="pandas" />
+            <item index="13" class="java.lang.String" itemvalue="pecanpy" />
+            <item index="14" class="java.lang.String" itemvalue="prettytable" />
+            <item index="15" class="java.lang.String" itemvalue="tqdm" />
+            <item index="16" class="java.lang.String" itemvalue="icecream" />
+            <item index="17" class="java.lang.String" itemvalue="nptyping" />
+            <item index="18" class="java.lang.String" itemvalue="faiss_cpu" />
+          </list>
+        </value>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyPep8NamingInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredErrors">
+        <list>
+          <option value="N806" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="numpy.array.np" />
+          <option value="tuple.append" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>
