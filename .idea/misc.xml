@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="GithubDefaultAccount">
-    <option name="defaultAccountId" value="b85ad98b-6068-4ca3-b5fc-74011761620e" />
+  <component name="Black">
+    <option name="sdkName" value="Python 3.11 (QKAN_implementation)" />
   </component>
   <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.11 (QKAN_implementation)" project-jdk-type="Python SDK" />
 </project>
