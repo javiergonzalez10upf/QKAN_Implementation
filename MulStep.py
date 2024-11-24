@@ -37,7 +37,38 @@ class MulStep(ChebyshevStep):
             raise ValueError("Weight magnitudes must be <= 1 for unitarity")
 
         self._weights[degree] = weights
+    def get_weighted_polynomial_matrix(
+            self,
+            x:np.ndarray,
+            K:int,
+            degree:int
+    ) -> np.ndarray:
+        """
+                Get weighted Chebyshev polynomial matrix before quantum encoding.
 
+                Args:
+                    x: Input vector with values in [-1,1]
+                    K: Number of copies for dilation
+                    degree: Degree of Chebyshev polynomial
+
+                Returns:
+                    Diagonal matrix containing weighted polynomial values
+                """
+        # First create Chebyshev matrix
+        cheb_matrix = self.create_dilated_chebyshev(x, K)
+
+        # Ensure weight vector size matches N*K
+        N = len(x)
+        expected_weights = N * K
+        if self.num_weights != expected_weights:
+            raise ValueError(f"Weight vector size {self.num_weights} does not match "
+                             f"expected size {expected_weights} = {N}*{K}")
+
+        # Get weights for this degree
+        weights = self._weights[degree]
+
+        # Return weighted polynomial matrix
+        return np.diag(np.diag(cheb_matrix) * weights)
     def create_weighted_chebyshev(
             self,
             x: np.ndarray,
