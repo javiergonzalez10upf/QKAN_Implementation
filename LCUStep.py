@@ -1,11 +1,10 @@
 import time
 import unittest
-
+import torch
 import numpy as np
 from fable import fable
 from qiskit import QuantumCircuit, transpile
 from qiskit_aer import Aer
-
 from MulStep import MulStep
 
 
@@ -127,9 +126,10 @@ class TestLCUStep(unittest.TestCase):
         """Test different combinations of N, K, and degrees"""
         configs = [
             {"N": 4, "K": 4, "d": 5, "name": "4x4 High Degree"},
-            {"N": 4, "K": 8, "d": 8, "name": "4x6 Medium"},
-            {"N": 8, "K": 4, "d": 7, "name": "6x4 Medium"},
+            {"N": 4, "K": 8, "d": 8, "name": "4x8 Medium"},
+            {"N": 8, "K": 4, "d": 7, "name": "8x4 Medium"},
             {"N": 4, "K": 8, "d": 20, "name": "4x8 Wide"},
+            {"N": 4, "K": 8, "d": 16, "name": "8x8 Wide"},
         ]
 
         for config in configs:
