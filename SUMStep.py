@@ -25,7 +25,7 @@ class SUMStep():
         :param K: Number of output nodes
         :return: Quantum circuit implementing final summer output and scaling factor
         """
-        diag_elements = np.diag(matrix).reshape(N, K)
+        diag_elements = np.diag(matrix).reshape(N, K, order='F')
         summed = np.sum(diag_elements, axis=0) / N
         output = np.diag(summed)
         return fable(output, 0)
@@ -77,30 +77,32 @@ class TestSUMStep(unittest.TestCase):
         # Verify within tolerance
         self.assertTrue(diff < 1e-6, f"Difference too high: {diff}")
 
-    def test_basic_sum(self):
-        """Test basic summation with small dimensions"""
-        N, K = 4, 2  # 4 inputs, 2 outputs
+    def test_simple_sum(self):
+        """Test simple summation case"""
+        N, K = 2, 2
 
-        # Create a test matrix with known pattern
-        x = np.arange(N * K).reshape(N, K).astype(float)
-        input_matrix = np.zeros((N * K, N * K))
-        for i in range(N):
-            for j in range(K):
-                input_matrix[i * K + j, i * K + j] = x[i, j]
+        # Create test input matrix
+        # Values arranged so each output sums specific inputs
+        input_vals = np.array([1.0, 0.5, -0.5, -1.0])  # NK values
+        input_matrix = np.diag(input_vals)
 
-        # Expected sum: each output j should get average of inputs
-        expected = np.zeros((K, K))
-        for j in range(K):
-            expected[j, j] = np.mean(x[:, j])
-
-        # Apply SUM step
+        # Create SUMStep and apply
         sum_step = SUMStep()
         circuit, scale = sum_step.apply_sum(input_matrix, N, K)
 
-        self.verify_unitary(circuit, expected, scale, "Basic Sum")
+        # Expected: each output gets average of its inputs
+        expected = np.diag([0.75, -0.75])  # (1.0 + 0.5)/2, (-0.5 + -1.0)/2
 
-    def test_power_of_two_systems(self):
-        """Test power-of-two sized systems"""
+        print("\nTest matrix structure:")
+        print("Input diagonal:", input_vals)
+        print("Reshaped (NxK):")
+        print(input_vals.reshape(N, K, order='F'))
+        print("Expected output:", np.diag(expected))
+
+        self.verify_unitary(circuit, expected, scale, "Simple Sum")
+
+    def test_power_of_two(self):
+        """Test power of 2 dimensions"""
         configs = [
             {"N": 4, "K": 4, "name": "4x4 Square"},
             {"N": 4, "K": 8, "name": "4x8 Wide"},
@@ -109,71 +111,77 @@ class TestSUMStep(unittest.TestCase):
 
         for config in configs:
             N, K = config["N"], config["K"]
-            print(f"\n=== Testing {config['name']} ===")
+            print(f"\nTesting {config['name']}")
 
-            # Create random input matrix
-            input_matrix = np.zeros((N * K, N * K))
-            values = np.random.uniform(-1, 1, (N, K))
-            for i in range(N):
-                for j in range(K):
-                    input_matrix[i * K + j, i * K + j] = values[i, j]
+            # Create random input diagonal matrix
+            input_vals = np.random.uniform(-1, 1, N * K)
+            input_matrix = np.diag(input_vals)
 
-            # Expected: each output j gets average of inputs
-            expected = np.zeros((K, K))
-            for j in range(K):
-                expected[j, j] = np.mean(values[:, j])
+            # Expected: sum over N inputs for each K outputs
+            reshaped = input_vals.reshape(N, K, order='F')
+            expected = np.diag(np.sum(reshaped, axis=0) / N)
 
-            start_time = time.time()
+            # Apply SUM step
             sum_step = SUMStep()
             circuit, scale = sum_step.apply_sum(input_matrix, N, K)
-            compute_time = time.time() - start_time
 
-            print(f"Computation time: {compute_time:.4f}s")
-            self.verify_unitary(circuit, expected, scale, config['name'])
+            print("Input shape:", input_matrix.shape)
+            print("Output shape:", expected.shape)
+            self.verify_unitary(circuit, expected, scale, config["name"])
 
     def test_edge_cases(self):
-        """Test edge cases for summation"""
+        """Test edge cases"""
         N, K = 4, 4
         sum_step = SUMStep()
 
         cases = {
-            "uniform_input": {
-                "values": np.ones((N, K)),
-                "desc": "All inputs are 1",
-            },
-            "alternating_input": {
-                "values": np.array([[1, -1] * (K // 2)] * N),
-                "desc": "Alternating +1/-1 inputs",
-            },
-            "zero_input": {
-                "values": np.zeros((N, K)),
+            "zeros": {
+                "input": np.zeros(N * K),
                 "desc": "All zero inputs",
             },
-            "single_nonzero": {
-                "values": np.eye(N, K),
-                "desc": "Only diagonal elements are 1",
-            }
+            "ones": {
+                "input": np.ones(N * K),
+                "desc": "All one inputs",
+            },
+            "alternating": {
+                "input": np.array([1, -1] * (N * K // 2)),
+                "desc": "Alternating +1/-1",
+            },
         }
 
         for case_name, case_data in cases.items():
             print(f"\nTesting {case_name}: {case_data['desc']}")
 
-            # Create input matrix
-            input_matrix = np.zeros((N * K, N * K))
-            values = case_data["values"]
-            for i in range(N):
-                for j in range(K):
-                    input_matrix[i * K + j, i * K + j] = values[i, j]
-
-            # Expected: each output j gets average of inputs
-            expected = np.zeros((K, K))
-            for j in range(K):
-                expected[j, j] = np.mean(values[:, j])
-
-            # Time the computation
-            start_time = time.time()
+            input_matrix = np.diag(case_data["input"])
             circuit, scale = sum_step.apply_sum(input_matrix, N, K)
-            compute_time = time.time() - start_time
 
-            print(f"Computation time: {compute_time:.4f}s")
+            # Calculate expected
+            reshaped = case_data["input"].reshape(N, K, order='F')
+            expected = np.diag(np.sum(reshaped, axis=0) / N)
+
+            print("Input values:", case_data["input"])
+            print("Reshaped (NxK):")
+            print(reshaped)
+            print("Expected output:", np.diag(expected))
+
             self.verify_unitary(circuit, expected, scale, f"Edge Case: {case_name}")
+
+    def test_numerical_stability(self):
+        """Test numerical stability with different scales"""
+        N, K = 4, 4
+        sum_step = SUMStep()
+
+        scales = [1e-3, 1e-2, 1e-1, 1, 1e1, 1e2]
+        for scale in scales:
+            print(f"\nTesting scale {scale}")
+
+            # Random values scaled
+            input_vals = np.random.uniform(-1, 1, N * K) * scale
+            input_matrix = np.diag(input_vals)
+
+            # Calculate expected
+            reshaped = input_vals.reshape(N, K, order='F')
+            expected = np.diag(np.sum(reshaped, axis=0) / N)
+
+            circuit, circ_scale = sum_step.apply_sum(input_matrix, N, K)
+            self.verify_unitary(circuit, expected, circ_scale, f"Scale {scale}")

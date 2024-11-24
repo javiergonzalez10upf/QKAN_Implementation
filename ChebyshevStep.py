@@ -15,7 +15,7 @@ class ChebyshevStep:
             raise ValueError("Degree must be positive integer.")
         self.degree = degree
 
-    def apply_chebyshev(self, x:float) -> float:
+    def apply_chebyshev(self, x: float) -> float:
         """
         Apply Chebyshev polynomial to input value.
         :param x(float): Input value in [-1, 1].
@@ -47,33 +47,35 @@ class ChebyshevStep:
         dilated_values = np.repeat(chebyshev_values, K)
         return np.diag(dilated_values)
 
+
 class TestChebyshevStep(unittest.TestCase):
     def test_simple_chebyshev(self):
         """Test simple chebyshev polynomial values"""
-        cheb = ChebyshevStep(degree = 1)
+        cheb = ChebyshevStep(degree=1)
 
         x_test = 0.5
         np.testing.assert_almost_equal(
             cheb.apply_chebyshev(x_test),
             x_test)
-        cheb2 = ChebyshevStep(degree = 2)
+        cheb2 = ChebyshevStep(degree=2)
         np.testing.assert_almost_equal(
             cheb2.apply_chebyshev(x_test),
-            2*x_test**2-1
+            2 * x_test ** 2 - 1
         )
+
     def test_vector_transform(self):
         """Test Chebyshev transformation on vector"""
-        cheb = ChebyshevStep(degree = 2)
+        cheb = ChebyshevStep(degree=2)
         x = np.array([0.5, -0.5, 0.0])
 
         result = cheb.transform_diagonal(x)
-        expected = 2*x**2-1
+        expected = 2 * x ** 2 - 1
         print(result)
         np.testing.assert_almost_equal(result, expected)
 
     def test_dilation(self):
         """Test Chebyshev polynomial with dilation"""
-        cheb = ChebyshevStep(degree = 1)
+        cheb = ChebyshevStep(degree=1)
         x = np.array([0.5, -0.5])
         K = 2
 
@@ -84,7 +86,7 @@ class TestChebyshevStep(unittest.TestCase):
 
     def test_input_validation(self):
         """Test input validation"""
-        cheb = ChebyshevStep(degree = 1)
+        cheb = ChebyshevStep(degree=1)
 
         with self.assertRaises(ValueError):
             cheb.apply_chebyshev(1.5)
@@ -93,11 +95,11 @@ class TestChebyshevStep(unittest.TestCase):
             cheb.transform_diagonal(np.array([1.5, 0.5]))
 
         with self.assertRaises(ValueError):
-            ChebyshevStep(degree = -1)
+            ChebyshevStep(degree=-1)
 
     def test_dilated_block_encoding_different_sizes(self):
-        cheb = ChebyshevStep(degree = 8)
-        x = np.array(np.array(np.random.uniform(low = -1, high = 1, size = 4)))
+        cheb = ChebyshevStep(degree=8)
+        x = np.array(np.array(np.random.uniform(low=-1, high=1, size=4)))
         K = 1
         A = cheb.create_dilated_chebyshev(x, K)
         N = A.shape[0]

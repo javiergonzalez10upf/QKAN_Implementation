@@ -1,6 +1,5 @@
 import time
 import unittest
-import torch
 import numpy as np
 from fable import fable
 from qiskit import QuantumCircuit, transpile
