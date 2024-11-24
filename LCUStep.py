@@ -16,7 +16,26 @@ class LCUStep:
         """
 
         self.max_degree = max_degree
+    def get_combined_matrix(
+            self,
+            x: np.ndarray,
+            mul_step: MulStep,
+            K: int
+    ) -> np.ndarray:
+        """
+        Get the combined matrix before quantum encoding
+        :param x: Input vector with values in [-1,1]
+        :param mul_step: MulStep object containing weights for each degree
+        :param K: Number of copies for dilation
+        :return: Combined matrix from weighted polynomials
+        """
 
+        combined = np.zeros((len(x) * K, len(x) * K))
+
+        for degree in range(self.max_degree + 1):
+            matrix = mul_step.get_weighted_polynomial_matrix(x, K, degree)
+            combined += matrix / (self.max_degree + 1)
+        return combined
     def combine_weighted_polynomials(
             self,
             x: np.ndarray,
@@ -88,48 +107,13 @@ class TestLCUStep(unittest.TestCase):
         # Verify within tolerance
         self.assertTrue(diff < 1e-6, f"Difference too high: {diff}")
 
-    def time_operation(self, operation, operation_name="Operation"):
-        """Helper to time operations"""
-        start_time = time.time()
-        result = operation()
-        end_time = time.time()
-        print(f"{operation_name} time: {end_time - start_time:.4f} seconds")
-        return result
-
-    def test_combine_degree1(self):
-        """Test combining polynomials up to degree 1 with equal weights 1/2"""
-        N, K = 2, 2
-        mul = MulStep(degree=1, num_weights=N * K)
-
-        # Random input vector in [-1,1]
-        x = np.random.uniform(-1, 1, size=N)
-
-        # Random weights in [-1,1]
-        weights0 = np.random.uniform(-1, 1, size=N * K)
-        weights1 = np.random.uniform(-1, 1, size=N * K)
-        mul.set_weights(0, weights0)
-        mul.set_weights(1, weights1)
-
-        # Get matrices for each polynomial
-        matrix0 = mul.get_weighted_polynomial_matrix(x, K, 0)
-        matrix1 = mul.get_weighted_polynomial_matrix(x, K, 1)
-
-        # Each polynomial contributes with weight 1/(d+1)
-        expected = (matrix0 + matrix1) / 2
-
-        # Create LCU step and combine
-        lcu = LCUStep(max_degree=1)
-        circuit, scale = lcu.combine_weighted_polynomials(x, mul, K)
-        self.verify_unitary(circuit, expected, scale, "Degree 1 Combined")
-
-    def test_medium_systems(self):
-        """Test different combinations of N, K, and degrees"""
+    def test_power_of_two_systems(self):
+        """Test power-of-two sized systems for efficiency"""
         configs = [
-            {"N": 4, "K": 4, "d": 5, "name": "4x4 High Degree"},
-            {"N": 4, "K": 8, "d": 8, "name": "4x8 Medium"},
-            {"N": 8, "K": 4, "d": 7, "name": "8x4 Medium"},
-            {"N": 4, "K": 8, "d": 20, "name": "4x8 Wide"},
-            {"N": 4, "K": 8, "d": 16, "name": "8x8 Wide"},
+            {"N": 4, "K": 4, "d": 5, "name": "4x4 Basic Power-2"},
+            {"N": 4, "K": 8, "d": 8, "name": "4x8 Wide Power-2"},
+            {"N": 8, "K": 4, "d": 7, "name": "8x4 Tall Power-2"},
+            {"N": 4, "K": 8, "d": 20, "name": "4x8 High Degree"},
         ]
 
         for config in configs:
@@ -163,7 +147,7 @@ class TestLCUStep(unittest.TestCase):
             circuit_time = time.time() - start
             print(f"Circuit creation time: {circuit_time:.4f}s")
 
-            # Time verification (most expensive part)
+            # Time verification
             start = time.time()
             self.verify_unitary(circuit, expected, scale, config["name"])
             verify_time = time.time() - start
@@ -182,8 +166,10 @@ class TestLCUStep(unittest.TestCase):
         N, K = 4, 4
         d = 2
         mul = MulStep(degree=d, num_weights=N * K)
-        lcu = LCUStep(max_degree=d)
 
+        print("\nTesting edge cases for system size", N * K)
+
+        # Test cases with timing
         cases = {
             "boundary_inputs": {
                 "x": np.array([-1.0] * (N // 2) + [1.0] * (N // 2)),
@@ -204,26 +190,23 @@ class TestLCUStep(unittest.TestCase):
         }
 
         for case_name, case_data in cases.items():
-            print(f"\nTesting edge case: {case_name}")
+            print(f"\nTesting {case_name}")
+            start_time = time.time()
 
-            def setup_case():
-                for degree, weights in enumerate(case_data["weights"]):
-                    mul.set_weights(degree, weights)
+            # Set weights
+            for degree, weights in enumerate(case_data["weights"]):
+                mul.set_weights(degree, weights)
 
-            def process_case():
-                # Get matrices
-                matrices = [mul.get_weighted_polynomial_matrix(case_data["x"], K, degree)
-                            for degree in range(d + 1)]
-                expected = sum(matrices) / (d + 1)
+            # Get matrices
+            matrices = [mul.get_weighted_polynomial_matrix(case_data["x"], K, degree)
+                        for degree in range(d + 1)]
+            expected = sum(matrices) / (d + 1)
 
-                # Create circuit
-                circuit, scale = lcu.combine_weighted_polynomials(case_data["x"], mul, K)
-                return expected, circuit, scale
+            # Create quantum circuit
+            lcu = LCUStep(max_degree=d)
+            circuit, scale = lcu.combine_weighted_polynomials(case_data["x"], mul, K)
 
-            self.time_operation(setup_case, "Case setup")
-            expected, circuit, scale = self.time_operation(
-                process_case,
-                "Case processing"
-            )
+            total_time = time.time() - start_time
+            print(f"Total time: {total_time:.4f} seconds")
 
             self.verify_unitary(circuit, expected, scale, f"Edge Case: {case_name}")

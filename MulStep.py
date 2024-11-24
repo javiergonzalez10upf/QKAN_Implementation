@@ -37,11 +37,12 @@ class MulStep(ChebyshevStep):
             raise ValueError("Weight magnitudes must be <= 1 for unitarity")
 
         self._weights[degree] = weights
+
     def get_weighted_polynomial_matrix(
             self,
-            x:np.ndarray,
-            K:int,
-            degree:int
+            x: np.ndarray,
+            K: int,
+            degree: int
     ) -> np.ndarray:
         """
                 Get weighted Chebyshev polynomial matrix before quantum encoding.
@@ -69,6 +70,7 @@ class MulStep(ChebyshevStep):
 
         # Return weighted polynomial matrix
         return np.diag(np.diag(cheb_matrix) * weights)
+
     def create_weighted_chebyshev(
             self,
             x: np.ndarray,

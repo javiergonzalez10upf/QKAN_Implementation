@@ -1,5 +1,4 @@
 import unittest
-
 import numpy as np
 from fable import fable
 from qiskit import ClassicalRegister, transpile
