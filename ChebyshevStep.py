@@ -11,7 +11,7 @@ class ChebyshevStep:
         Initialize Chebyshev transformation step.
         :param degree: Degree of chebyshev polynomial
         """
-        if degree < 1:
+        if degree < 0:
             raise ValueError("Degree must be positive integer.")
         self.degree = degree
 
