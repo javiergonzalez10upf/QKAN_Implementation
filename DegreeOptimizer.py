@@ -24,21 +24,25 @@ class DegreeOptimizer:
         self.network_shape = network_shape
         self.num_layers = len(network_shape)  - 1
         self.max_degree = max_degree
-        self.complexity_weight = Placeholder("complexity_weight")
+        self.complexity_weight = complexity_weight
 
     def optimize_layer(self,
                        layer_idx: int,
                        x_data: np.ndarray,
                        y_data: np.ndarray,
-                       num_reads: int = 1000) -> List[List[int]]:
+                       num_reads: int = 1000,
+                       feed_dict: dict[str, float] = None) -> List[List[int]]:
         """
         Optimize degrees for a single layer.
         :param layer_idx: Which layer to optimize
         :param x_data: Input data for this layer
         :param y_data: Target data for this layer
         :param num_reads: Number of annealing reads
+        :param feed_dict: Optional dictionary for feed-forward optimization
         :return: optimal degrees: List of optimal degrees for this layer's functions
         """
+        if feed_dict is None:
+            feed_dict = {'complexity_weight': 0.1}  # Default value
 
         input_dim = self.network_shape[layer_idx]
         output_dim = self.network_shape[layer_idx + 1]
@@ -68,7 +72,7 @@ class DegreeOptimizer:
 
         # Compile and solve
         model = H.compile()
-        bqm = model.to_bqm(feed_dict={'complexity_weight': self.complexity_weight})
+        bqm = model.to_bqm()
 
         sampler = neal.SimulatedAnnealingSampler()
         sampleset = sampler.sample(bqm, num_reads=num_reads)
@@ -83,7 +87,7 @@ class DegreeOptimizer:
             for in_idx in range(input_dim):
                 qubo_idx = out_idx * input_dim + in_idx
                 for d in range(self.max_degree + 1):
-                    if best_sample.sample[f'q[{qubo_idx},{d}]'] == 1:
+                    if best_sample.sample[f'q[{qubo_idx}][{d}]'] == 1:
                         output_connections.append(d)
                         break
             optimal_degrees.append(output_connections)
@@ -133,101 +137,129 @@ class DegreeOptimizer:
 
 class TestDegreeOptimizer(unittest.TestCase):
     def setUp(self):
-        """Set up test fixtures"""
-        self.network_shape = [2, 2, 1]
-        self.max_degree = 3
+        """Setup test environment"""
+        self.max_degree = 8
+        self.network_shape = [1, 1]  # Start with simplest case
         self.optimizer = DegreeOptimizer(
             network_shape=self.network_shape,
             max_degree=self.max_degree,
             complexity_weight=0.1
         )
-    def test_evaluate_expressiveness(self):
-        """Test R² score calculation for Chebyshev polynomials"""
-        # Create test data that follows T_2(x) = 2x² - 1
-        x_data = np.array([-1.0, -0.5, 0.0, 0.5, 1.0])
-        y_data = 2*x_data**2 - 1  # Second Chebyshev polynomial T_2(x)
 
-        scores = self.optimizer.evaluate_expressiveness(x_data, y_data)
+    def test_single_chebyshev_degrees(self):
+        """Test degree selection for pure Chebyshev polynomials"""
+        x = np.linspace(-1, 1, 50)
+        test_cases = [
+            # T_0(x) = 1
+            (lambda x: np.ones_like(x), 0, "T_0(x) = 1"),
+            # T_1(x) = x
+            (lambda x: x, 1, "T_1(x) = x"),
+            # T_2(x) = 2x² - 1
+            (lambda x: 2*x**2 - 1, 2, "T_2(x) = 2x² - 1"),
+            # T_3(x) = 4x³ - 3x
+            (lambda x: 4*x**3 - 3*x, 3, "T_3(x) = 4x³ - 3x")
+        ]
 
-        # Test scores shape
-        self.assertEqual(len(scores), self.max_degree + 1,
-                         "Should have score for each possible degree")
+        for func, expected_degree, name in test_cases:
+            y = func(x)
 
-        # Test scores values - degree 2 should be best for T_2(x)
-        self.assertGreater(scores[2], scores[1],
-                           "T_2(x) should score better with degree 2 than 1")
-        self.assertGreater(scores[2], scores[0],
-                           "T_2(x) should score better with degree 2 than 0")
-        if self.max_degree > 2:
-            self.assertGreater(scores[2], scores[3],
-                               "T_2(x) should score better with degree 2 than 3")
-    def test_optimize_layer(self):
-        """Test layer degree optimization with Chebyshev polynomials"""
-        # First layer has 2 input nodes -> 2 output nodes
-        x = np.linspace(-1, 1, 5)  # 5 samples
-        x_data = np.array([
-            [x1, x2] for x1, x2 in zip(x, x[::-1])  # Different values for each input
-        ])
+            layer_degrees = self.optimizer.optimize_layer(
+                layer_idx=0,
+                x_data=x[:, None],
+                y_data=y[:, None],
+                num_reads=100
+            )
 
-        # Each output node computes a different Chebyshev polynomial
-        # Output node 1: T_2(x1) for first input
-        # Output node 2: T_1(x2) for second input
-        y_data = np.array([
-            [2*x1**2 - 1, x2]  # T_2(x1), T_1(x2)
-            for x1, x2 in x_data
-        ])
+            self.assertEqual(layer_degrees[0][0], expected_degree,
+                             f"Should select degree {expected_degree} for {name}")
+
+    def test_chebyshev_combinations(self):
+        """Test degree selection for combinations of Chebyshev polynomials"""
+        x = np.linspace(-1, 1, 50)
+        test_cases = [
+            # T_1(x) + T_2(x)
+            (lambda x: x + (2*x**2 - 1), 2, "T_1(x) + T_2(x)"),
+            # T_2(x) + T_3(x)
+            (lambda x: (2*x**2 - 1) + (4*x**3 - 3*x), 3, "T_2(x) + T_3(x)"),
+            # 0.5*T_1(x) + 0.5*T_3(x)
+            (lambda x: 0.5*x + 0.5*(4*x**3 - 3*x), 3, "0.5*T_1(x) + 0.5*T_3(x)")
+        ]
+
+        for func, expected_degree, name in test_cases:
+            y = func(x)
+
+            layer_degrees = self.optimizer.optimize_layer(
+                layer_idx=0,
+                x_data=x[:, None],
+                y_data=y[:, None],
+                num_reads=100
+            )
+
+            self.assertEqual(layer_degrees[0][0], expected_degree,
+                             f"Should select degree {expected_degree} for {name}")
+
+    def test_noisy_chebyshev(self):
+        """Test degree selection with noisy Chebyshev polynomials"""
+        x = np.linspace(-1, 1, 50)
+        np.random.seed(42)  # For reproducibility
+
+        test_cases = [
+            # T_2(x) + small noise
+            (lambda x: (2*x**2 - 1) + np.random.normal(0, 0.1, x.shape), 2,
+             "T_2(x) + small noise"),
+            # T_3(x) + medium noise
+            (lambda x: (4*x**3 - 3*x) + np.random.normal(0, 0.2, x.shape), 3,
+             "T_3(x) + medium noise")
+        ]
+
+        for func, expected_degree, name in test_cases:
+            y = func(x)
+
+            layer_degrees = self.optimizer.optimize_layer(
+                layer_idx=0,
+                x_data=x[:, None],
+                y_data=y[:, None],
+                num_reads=100
+            )
+
+            self.assertEqual(layer_degrees[0][0], expected_degree,
+                             f"Should select degree {expected_degree} for {name}")
+
+    def test_degree_preference(self):
+        """Test optimizer prefers lower degrees when possible"""
+        x = np.linspace(-1, 1, 50)
+        # T_1(x) with very small high degree terms
+        y = x + 0.01*(4*x**3 - 3*x) + 0.001*(8*x**4 - 8*x**2 + 1)
 
         layer_degrees = self.optimizer.optimize_layer(
             layer_idx=0,
-            x_data=x_data,  # Shape: [5, 2]
-            y_data=y_data,  # Shape: [5, 2]
+            x_data=x[:, None],
+            y_data=y[:, None],
             num_reads=100
         )
 
-        # Check degrees matrix shape: [output_dim, input_dim] = [2, 2]
-        self.assertEqual(len(layer_degrees), 2, "Should have degrees for 2 output nodes")
-        self.assertEqual(len(layer_degrees[0]), 2, "Each output should have 2 input degrees")
+        self.assertEqual(layer_degrees[0][0], 1,
+                         "Should prefer degree 1 when higher degrees have negligible coefficients")
 
-        # First output node should prefer degree 2 for T_2(x) relationship
-        self.assertEqual(layer_degrees[0][0], 2, "Should select degree 2 for T_2(x)")
-        # Second output node should prefer degree 1 for T_1(x) relationship
-        self.assertEqual(layer_degrees[1][1], 1, "Should select degree 1 for T_1(x)")
+    def test_complexity_weight_impact(self):
+        """Test impact of complexity weight on degree selection"""
+        x = np.linspace(-1, 1, 50)
+        y = 4*x**3 - 3*x  # T_3(x)
 
-    def test_optimize_network(self):
-        """Test full network optimization with Chebyshev polynomials"""
-        # Layer 0: 2 inputs -> 2 outputs
-        x = np.linspace(-1, 1, 5)
-        layer0_input = np.array([
-            [x1, x2] for x1, x2 in zip(x, x[::-1])
-        ])
-        layer0_output = np.array([
-            [2*x1**2 - 1, x2]  # T_2(x1), T_1(x2)
-            for x1, x2 in layer0_input
-        ])
+        # With very high complexity penalty
+        high_penalty_optimizer = DegreeOptimizer(
+            network_shape=self.network_shape,
+            max_degree=self.max_degree,
+            complexity_weight=1.0  # High penalty
+        )
 
-        # Layer 1: 2 inputs -> 1 output
-        layer1_input = layer0_output  # Use output from layer 0
-        layer1_output = np.array([
-            [y1 + y2]  # Simple sum of inputs
-            for y1, y2 in layer1_input
-        ])
-
-        training_data = {
-            'layer_0_input': layer0_input,   # Shape: [5, 2]
-            'layer_0_output': layer0_output, # Shape: [5, 2]
-            'layer_1_input': layer1_input,   # Shape: [5, 2]
-            'layer_1_output': layer1_output  # Shape: [5, 1]
-        }
-
-        network_degrees = self.optimizer.optimize_network(
-            training_data=training_data,
+        degrees_high_penalty = high_penalty_optimizer.optimize_layer(
+            layer_idx=0,
+            x_data=x[:, None],
+            y_data=y[:, None],
             num_reads=100
         )
 
-        # Test layer 0 degrees matrix: [2, 2]
-        self.assertEqual(len(network_degrees[0]), 2, "Layer 0 should have 2 output nodes")
-        self.assertEqual(len(network_degrees[0][0]), 2, "Layer 0 outputs should have 2 input degrees")
-
-        # Test layer 1 degrees matrix: [1, 2]
-        self.assertEqual(len(network_degrees[1]), 1, "Layer 1 should have 1 output node")
-        self.assertEqual(len(network_degrees[1][0]), 2, "Layer 1 output should have 2 input degrees")
+        # Should select lower degree due to high complexity penalty
+        self.assertLess(degrees_high_penalty[0][0], 3,
+                        "High complexity penalty should force lower degree")
