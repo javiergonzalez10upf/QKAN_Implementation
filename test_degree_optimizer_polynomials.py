@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 import polars as pl
 from DegreeOptimizer import DegreeOptimizer
-from ChebyshevStep import ChebyshevStep
+from QKAN_Steps.ChebyshevStep import ChebyshevStep
 from numpy.polynomial.chebyshev import chebval
 
 class TestDegreeOptimizerPolynomials(unittest.TestCase):

@@ -3,10 +3,10 @@ import unittest
 
 import numpy as np
 
-from ChebyshevStep import ChebyshevStep
-from LCUStep import LCUStep
-from MulStep import MulStep
-from SUMStep import SUMStep
+from QKAN_Steps.ChebyshevStep import ChebyshevStep
+from QKAN_Steps.LCUStep import LCUStep
+from QKAN_Steps.MulStep import MulStep
+from QKAN_Steps.SUMStep import SUMStep
 
 
 class QKANLayer:

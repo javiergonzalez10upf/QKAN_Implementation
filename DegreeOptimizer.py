@@ -1,14 +1,15 @@
-import warnings
 import numpy as np
-from typing import List, Dict, Tuple
+from typing import List, Dict
 import polars as pl
-from cpp_pyqubo import Placeholder, Constraint
+from cpp_pyqubo import Constraint
 from pyqubo import Array
 import neal
-from ChebyshevStep import ChebyshevStep
+
+from BaseOptimizer import BaseOptimizer
+from QKAN_Steps.ChebyshevStep import ChebyshevStep
 
 
-class DegreeOptimizer:
+class DegreeOptimizer(BaseOptimizer):
     def __init__(self,
                  network_shape: List[int],
                  max_degree: int,
@@ -22,105 +23,25 @@ class DegreeOptimizer:
             complexity_weight: Weight for degree complexity penalty
             significance_threshold: Minimum relative improvement needed to prefer higher degree
         """
+        super().__init__()
         self.network_shape = network_shape
         self.num_layers = len(network_shape) - 1
         self.max_degree = max_degree
         self.complexity_weight = complexity_weight
         self.significance_threshold = significance_threshold
-        self._fold_caches = {}  # Cache per fold
 
-    def _compute_collapsed_combinations(self, x_data: pl.DataFrame, fold_id: str = None) -> Dict[int, np.ndarray]:
+
+    def _compute_transforms(self, feature_data: np.ndarray) -> Dict[int, np.ndarray]:
         """
-        Precompute and collapse Chebyshev polynomial combinations for a specific fold.
-        Based on Troy's paper section 4.5, collapsing input combinations.
-        Args:
-            x_data: Input data
-            fold_id: Optional identifier for the fold (for cross-validation)
-        Returns:
-            Dictionary mapping degrees to collapsed combinations
+        Implementation of abstract method from BaseOptimizer.
+        Compute Chebyshev transforms for all degrees up to max_degree.
         """
-        cache_key = f"{fold_id}_{hash(str(x_data))}" if fold_id else hash(str(x_data))
-        if cache_key in self._fold_caches:
-            return self._fold_caches[cache_key]
-            
-        # Convert feature data to numpy array
-        feature_data = x_data.select(pl.col('^feature_.*$')).to_numpy()
-            
         transforms = {}
         for d in range(self.max_degree + 1):
             cheb_step = ChebyshevStep(degree=d)
             arr = cheb_step.transform_diagonal(feature_data)
             transforms[d] = arr
-
-        self._fold_caches[cache_key] = transforms
         return transforms
-
-    def _compute_r2_score(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
-        """Compute R² score with validation checks"""
-        if len(y_true) < 2:
-            raise ValueError("Need at least 2 samples for R² score")
-
-        # ss_res = np.sum((y_true - y_pred) ** 2)
-        # ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
-        #
-        # score = 1 - (ss_res / (ss_tot + 1e-10))
-        y_mean = np.mean(y_true)
-        tss = np.sum((y_true - y_mean) ** 2)
-        rss = np.sum((y_true - y_pred) ** 2)
-        score = 1 - (rss / tss)
-        if not (-1 <= score <= 1):
-            warnings.warn(f"Invalid R² score: {score}")
-            
-        return score
-    def _get_time_based_folds(self, data: pl.DataFrame, n_splits:int = 5) -> List[Tuple[np.ndarray, np.ndarray]]:
-        """Create time-based cross-validation folds."""
-        timestamps = data.get_column('date_id').unique().sort()
-        n_times = len(timestamps)
-
-        folds = []
-        for i in range(n_splits):
-            split_idx = int((i + 1) * n_times // (n_splits + 1))
-            val_end_idx = int((i + 2) * n_times // (n_splits + 1))
-
-            #Training: up to split point
-            train_times = timestamps[:split_idx]
-            #Validation: next chunk
-            val_times = timestamps[split_idx:val_end_idx]
-
-            train_mask = data.get_column('date_id').is_in(train_times)
-            val_mask = data.get_column('date_id').is_in(val_times)
-
-            folds.append((train_mask.to_numpy(), val_mask.to_numpy()))
-        return folds
-
-    def _get_expanding_window_folds(self, data: pl.DataFrame, n_splits:int = 5, initial_ratio:float = 0.6) -> List[Tuple[np.ndarray, np.ndarray]]:
-        """
-        Create expanding window cross-validation folds.
-        :param data: Input DataFrame with time column
-        :param n_splits: Number of validation periods
-        :param initial_ratio: Initial training set size as ratio of total data
-        :return: List of (train_mask, val_mask) tuples
-        """
-        timestamps = data.get_column('date_id').unique().sort()
-        n_times = len(timestamps)
-
-        initial_train_size = int(n_times * initial_ratio)
-
-        val_size = int((n_times - initial_train_size) / n_splits)
-
-        folds = []
-        for i in range(n_splits):
-            train_end_idx = initial_train_size + i * val_size
-            train_times = timestamps[:train_end_idx]
-
-            val_times = timestamps[train_end_idx:min(train_end_idx + val_size, n_times)]
-
-            train_mask = data.get_column('date_id').is_in(train_times)
-            val_mask = data.get_column('date_id').is_in(val_times)
-
-            folds.append((train_mask.to_numpy(), val_mask.to_numpy()))
-        return folds
-
     def evaluate_expressiveness(self, x_data: pl.DataFrame, y_data: np.ndarray, cv_strategy: str = 'expanding_window') -> np.ndarray:
         """
         Calculate R^2 scores using chosen cross-validation strategy.
@@ -168,8 +89,7 @@ class DegreeOptimizer:
                     print("Condition number of X_train:", cond_num)
                 coeffs = np.linalg.lstsq(X_train, train_y, rcond=None)[0]
                 val_pred = X_val @ coeffs
-                mse = np.mean((val_y - val_pred) ** 2)
-                cv_scores.append(mse)
+                cv_scores.append(self._compute_validation_score(val_pred, val_y))
             scores[d] = np.mean(cv_scores)
         return scores
 
@@ -283,3 +203,22 @@ class DegreeOptimizer:
             )
             network_degrees.append(layer_degrees)
         return network_degrees
+    def save_state(self, filename: str) -> None:
+        """Save optimizer state"""
+        state = {
+            'network_shape': self.network_shape,
+            'max_degree': self.max_degree,
+            'complexity_weight': self.complexity_weight,
+            'significance_threshold': self.significance_threshold,
+            'fold_caches': self._fold_caches
+        }
+        np.save(filename, state)
+
+    def load_state(self, filename: str) -> None:
+        """Load optimizer state"""
+        state = np.load(filename, allow_pickle=True).item()
+        self.network_shape = state['network_shape']
+        self.max_degree = state['max_degree']
+        self.complexity_weight = state['complexity_weight']
+        self.significance_threshold = state['significance_threshold']
+        self._fold_caches = state['fold_caches']
