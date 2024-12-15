@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import polars as pl
 from cpp_pyqubo import Constraint
 from pyqubo import Array
@@ -37,30 +37,49 @@ class DegreeOptimizer(BaseOptimizer):
         Compute Chebyshev transforms for all degrees up to max_degree.
         """
         transforms = {}
+        n_samples = len(feature_data)
+
         for d in range(self.max_degree + 1):
             cheb_step = ChebyshevStep(degree=d)
-            arr = cheb_step.transform_diagonal(feature_data)
-            transforms[d] = arr
+            # Transform each feature separately and maintain sample dimension
+            transformed_features = []
+            for feature_idx in range(feature_data.shape[1]):
+                feature_transform = cheb_step.transform_diagonal(feature_data[:, feature_idx])
+                transformed_features.append(feature_transform)
+
+            transforms[d] = np.stack(transformed_features, axis=1)
+
         return transforms
-    def evaluate_expressiveness(self, x_data: pl.DataFrame, y_data: np.ndarray, cv_strategy: str = 'expanding_window') -> np.ndarray:
+    def evaluate_expressiveness(self,
+                                x_data: pl.DataFrame,
+                                y_data: np.ndarray,
+                                time_data: pl.DataFrame,
+                                weights: np.ndarray = None,
+                                cv_strategy: str = 'expanding_window'
+                                ) -> Tuple[np.ndarray, List[List[Dict[str,float]]]]:
         """
         Calculate R^2 scores using chosen cross-validation strategy.
+        :param weights: Optional sample weights
         :param x_data: INput data as DataFrame
         :param y_data: Target data
+        :param time_data: Time data as numpy array
         :param cv_strategy: Cross-validation strategy
         :return: Array of R^2 scores for each degree
         """
 
-        scores = np.zeros(self.max_degree + 1)
+        mse_scores = np.zeros(self.max_degree + 1)
+        fold_metrics_per_degree = []
+
+
 
         # Get folds based on strategy
         if cv_strategy == 'expanding_window':
-            folds = self._get_expanding_window_folds(x_data)
+            folds = self._get_expanding_window_folds(time_data,x_data)
         else:  # time_based
-            folds = self._get_time_based_folds(x_data)
+            folds = self._get_time_based_folds(time_data,x_data)
 
         for d in range(self.max_degree + 1):
-            cv_scores = []
+            fold_metrics = []
             for i, (train_mask, val_mask) in enumerate(folds):
                 # Get train/val data using masks
                 train_data = x_data.filter(train_mask)
@@ -70,28 +89,47 @@ class DegreeOptimizer(BaseOptimizer):
                 train_y = y_data[train_mask]
                 val_y = y_data[val_mask]
 
+                val_weights = weights[val_mask] if weights is not None else None
+
                 # Rest remains the same
                 fold_id = f"fold_{i}"
 
                 train_features = []
                 val_features = []
                 for degree in range(d + 1):
+                    # Get collapsed combinations
                     train_collapsed = self._compute_collapsed_combinations(train_data, f"{fold_id}_train")[degree]
                     val_collapsed = self._compute_collapsed_combinations(val_data, f"{fold_id}_val")[degree]
-                    train_features.append(train_collapsed.reshape(-1,1))
-                    val_features.append(val_collapsed.reshape(-1,1))
+
+                    # Reshape preserving the sample dimension
+                    n_train_samples = len(train_data)
+                    n_val_samples = len(val_data)
+
+                    # Print shapes for debugging
+                    print(f"Degree {degree}:")
+                    print(f"Original train_collapsed shape: {train_collapsed.shape}")
+                    print(f"Number of train samples: {n_train_samples}")
+
+                    # Reshape correctly maintaining sample dimension
+                    train_collapsed = train_collapsed.reshape(n_train_samples, -1)
+                    val_collapsed = val_collapsed.reshape(n_val_samples, -1)
+
+                    train_features.append(train_collapsed)
+                    val_features.append(val_collapsed)
                 X_train = np.hstack(train_features) if train_features else np.zeros((len(train_y), 0))
                 X_val = np.hstack(val_features) if val_features else np.zeros((len(val_y), 0))
-                # Compute condition number for debugging
-                if X_train.size > 0:
-                    u, s, vh = np.linalg.svd(X_train, full_matrices=False)
-                    cond_num = s[0] / s[-1] if s[-1] > 1e-15 else np.inf
-                    print("Condition number of X_train:", cond_num)
+                # Fit and predict
                 coeffs = np.linalg.lstsq(X_train, train_y, rcond=None)[0]
                 val_pred = X_val @ coeffs
-                cv_scores.append(self._compute_validation_score(val_pred, val_y))
-            scores[d] = np.mean(cv_scores)
-        return scores
+
+                metrics = self._compute_metrics(val_y, val_pred, val_weights)
+                fold_metrics.append(metrics)
+
+
+            mse_scores[d] = np.mean([m['mse'] for m in fold_metrics])
+            fold_metrics_per_degree.append(fold_metrics)
+
+        return mse_scores, fold_metrics_per_degree
 
     def is_degree_definitive(self, scores: np.ndarray) -> tuple[bool, int]:
         """
@@ -118,16 +156,19 @@ class DegreeOptimizer(BaseOptimizer):
         return is_definitive, best_degree
 
     def optimize_layer(self, layer_idx: int, x_data: pl.DataFrame, y_data: np.ndarray, 
-                      num_reads: int = 1000) -> List[List[int]]:
+                      time_data:pl.DataFrame, weights:np.ndarray, num_reads: int = 1000) -> List[List[int]]:
         """
         Optimize degrees for a single layer.
         Args:
             layer_idx: Which layer to optimize
             x_data: Input data
             y_data: Target data
+            time_data: Time data
+            weights: Optional sample weights
             num_reads: Number of annealing reads
         Returns:
             List of optimal degrees for this layer's functions
+
         """
         input_dim = self.network_shape[layer_idx]
         output_dim = self.network_shape[layer_idx + 1]
@@ -135,7 +176,17 @@ class DegreeOptimizer(BaseOptimizer):
 
         q = Array.create('q', shape=(num_functions, self.max_degree + 1), vartype='BINARY')
 
-        scores = self.evaluate_expressiveness(x_data, y_data)
+        scores, fold_metrics = self.evaluate_expressiveness(x_data, y_data, time_data, weights)
+
+        # Print metrics per degree for monitoring if needed
+        print("\nDegree optimization metrics:")
+        for d in range(self.max_degree + 1):
+            mse_vals = [metrics['mse'] for metrics in fold_metrics[d]]
+            r2_vals = [metrics['r2'] for metrics in fold_metrics[d]]
+            print(f"\nDegree {d}:")
+            print(f"  MSE: {np.mean(mse_vals):.4f} (±{np.std(mse_vals):.4f})")
+            print(f"  R²:  {np.mean(r2_vals):.4f} (±{np.std(r2_vals):.4f})")
+
         is_definitive, definitive_degree = self.is_degree_definitive(scores)
         
         # Build QUBO
@@ -203,6 +254,38 @@ class DegreeOptimizer(BaseOptimizer):
             )
             network_degrees.append(layer_degrees)
         return network_degrees
+
+    def _compute_metrics(self, y_true: np.ndarray, y_pred: np.ndarray, weights: np.ndarray = None) -> Dict[str, float]:
+        """
+        Compute both MSE and R² scores.
+        :param y_true: True values
+        :param y_pred: Predicted values
+        :param weights: Optional sample weights
+        :return: Dictionary with both metrics
+        """
+        # MSE calculation (weighted if weights provided)
+        squared_errors = (y_true - y_pred) ** 2
+        if weights is not None:
+            mse = np.average(squared_errors, weights=weights)
+        else:
+            mse = np.mean(squared_errors)
+
+        # R² calculation
+        if weights is not None:
+            # Weighted R² using competition formula
+            weighted_squared_errors_sum = np.sum(weights * squared_errors)
+            weighted_y_squared_sum = np.sum(weights * y_true ** 2)
+            r2 = 1 - weighted_squared_errors_sum / weighted_y_squared_sum if weighted_y_squared_sum > 0 else 0.0
+        else:
+            # Unweighted R²
+            ss_res = np.sum(squared_errors)
+            ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+            r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
+
+        return {
+            'mse': mse,
+            'r2': r2
+        }
     def save_state(self, filename: str) -> None:
         """Save optimizer state"""
         state = {

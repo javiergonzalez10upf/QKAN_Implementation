@@ -35,20 +35,22 @@ class BaseOptimizer(ABC):
         """
         pass
 
-    def _get_expanding_window_folds(self, data: pl.DataFrame, n_splits:int = 5, initial_ratio:float = 0.6) -> List[Tuple[np.ndarray, np.ndarray]]:
+    def _get_expanding_window_folds(self, timestamps: pl.DataFrame, data: pl.DataFrame, n_splits: int = 5, initial_ratio: float = 0.6) -> List[Tuple[np.ndarray, np.ndarray]]:
         """
         Create expanding window cross-validation folds.
 
         Args:
-            data: Input DataFrame with time column
+            timestamps: DataFrame containing date_id timestamps
+            data: Input DataFrame with normalized features
             n_splits: Number of validation periods
             initial_ratio: Initial training set size as ratio of total data
 
         Returns:
             List of (train_mask, val_mask) tuples
         """
-        timestamps = data.get_column('date_id').unique().sort()
-        n_times = len(timestamps)
+        # Get unique sorted timestamps
+        unique_timestamps = timestamps.get_column('date_id').unique().sort()
+        n_times = len(unique_timestamps)
 
         initial_train_size = int(n_times * initial_ratio)
         val_size = int((n_times - initial_train_size) / n_splits)
@@ -56,44 +58,45 @@ class BaseOptimizer(ABC):
         folds = []
         for i in range(n_splits):
             train_end_idx = initial_train_size + i * val_size
-            train_times = timestamps[:train_end_idx]
+            train_times = unique_timestamps[:train_end_idx]
+            val_times = unique_timestamps[train_end_idx:min(train_end_idx + val_size, n_times)]
 
-            val_times = timestamps[train_end_idx:min(train_end_idx + val_size, n_times)]
+            # Create masks using timestamps DataFrame
+            train_mask = timestamps.get_column('date_id').is_in(train_times).to_numpy()
+            val_mask = timestamps.get_column('date_id').is_in(val_times).to_numpy()
 
-            train_mask = data.get_column('date_id').is_in(train_times)
-            val_mask = data.get_column('date_id').is_in(val_times)
-
-            folds.append((train_mask.to_numpy(), val_mask.to_numpy()))
+            folds.append((train_mask, val_mask))
         return folds
-
-    def _get_time_based_folds(self, data: pl.DataFrame, n_splits:int = 5) -> List[Tuple[np.ndarray, np.ndarray]]:
+    def _get_time_based_folds(self, timestamps: pl.DataFrame, data: pl.DataFrame, n_splits: int = 5) -> List[Tuple[np.ndarray, np.ndarray]]:
         """
         Create time-based cross-validation folds.
 
         Args:
-            data: Input DataFrame with time column
+            timestamps: DataFrame containing date_id timestamps
+            data: Input DataFrame with normalized features
             n_splits: Number of validation periods
 
         Returns:
             List of (train_mask, val_mask) tuples
         """
-        timestamps = data.get_column('date_id').unique().sort()
-        n_times = len(timestamps)
+        # Get unique sorted timestamps
+        unique_timestamps = timestamps.get_column('date_id').unique().sort()
+        n_times = len(unique_timestamps)
 
         folds = []
         for i in range(n_splits):
             split_idx = int((i + 1) * n_times // (n_splits + 1))
             val_end_idx = int((i + 2) * n_times // (n_splits + 1))
 
-            train_times = timestamps[:split_idx]
-            val_times = timestamps[split_idx:val_end_idx]
+            train_times = unique_timestamps[:split_idx]
+            val_times = unique_timestamps[split_idx:val_end_idx]
 
-            train_mask = data.get_column('date_id').is_in(train_times)
-            val_mask = data.get_column('date_id').is_in(val_times)
+            # Create masks using timestamps DataFrame
+            train_mask = timestamps.get_column('date_id').is_in(train_times).to_numpy()
+            val_mask = timestamps.get_column('date_id').is_in(val_times).to_numpy()
 
-            folds.append((train_mask.to_numpy(), val_mask.to_numpy()))
+            folds.append((train_mask, val_mask))
         return folds
-
     def _compute_validation_score(self, predictions: np.ndarray, y_true: np.ndarray) -> float:
         """
         Compute MSE validation score.

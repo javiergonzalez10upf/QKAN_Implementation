@@ -35,11 +35,14 @@ def normalize_to_chebyshev_domain(lf: pl.LazyFrame, feature_cols: list) -> pl.La
         pl.col('resp').quantile(.95).alias("resp_q95"),
         pl.col('resp').quantile(.05).alias("resp_q05"),
         pl.col('resp').std().alias("resp_std"),
+        pl.col('weight').quantile(.95).alias("weight_q95"),
+        pl.col('weight').quantile(.05).alias("weight_q05"),
+        pl.col('weight').std().alias("weight_std"),
     ]).collect()
 
     # Create normalization expressions
     normalized_features_and_resp = []
-    for col in feature_cols + ['resp']:
+    for col in feature_cols + ['resp','weight']:
         q05 = stats.get_column(f"{col}_q05")[0]
         q95 = stats.get_column(f"{col}_q95")[0]
         std = stats.get_column(f"{col}_std")[0]
@@ -82,28 +85,40 @@ def test_degree_optimizer_on_market_data():
     query = (lf
              .select([
         pl.col("date_id"),
-        pl.col("responder_6").alias("resp"),  # Use correct column name
+        pl.col("responder_6").alias("resp"),
+        pl.col('weight')
         *[pl.col(f) for f in feature_cols]
     ])
-             .limit(100000)
+             .limit(1000000)
              .sort("date_id"))
 
     # 5. Normalize features for Chebyshev polynomials
     print("\nNormalizing features to [-1,1]...")
     normalized_lf = normalize_to_chebyshev_domain(query, feature_cols)
 
-    # # 5. Verify normalization (using lazy operations)
-    # norm_stats = normalized_lf.select([
-    #     *[pl.col(col).min().alias(f"{col}_min") for col in feature_cols],
-    #     *[pl.col(col).max().alias(f"{col}_max") for col in feature_cols],
-    #     *[pl.col(col).mean().alias(f"{col}_mean") for col in feature_cols]
-    # ]).collect()
-    #
-    # for col in feature_cols:
-    #     print(f"\n{col} after normalization:")
-    #     print(f"  Min: {norm_stats.get_column(f'{col}_min')[0]:.4f}")
-    #     print(f"  Max: {norm_stats.get_column(f'{col}_max')[0]:.4f}")
-    #     print(f"  Mean: {norm_stats.get_column(f'{col}_mean')[0]:.4f}")
+    dates = normalized_lf.select('date_id').collect().unique()
+    n_dates = len(dates)
+
+    train_dates = dates[:int(0.6 * n_dates)]
+    val_dates = dates[int(0.6 * n_dates):int(0.8 * n_dates)]
+    test_dates = dates[int(0.8 * n_dates):]
+
+    train_mask = dates.filter(train_dates)
+    val_mask = dates.filter(val_dates)
+    test_mask = dates.filter(test_dates)
+
+    train_data = normalized_lf.filter(train_mask).select([
+        pl.col(f'{col}_normalized') for col in feature_cols
+    ]).collect()
+
+    val_data = normalized_lf.filter(val_mask).select([
+        pl.col(f"{col}_normalized") for col in feature_cols
+    ]).collect()
+
+    test_data = normalized_lf.filter(test_mask).select([
+        pl.col(f"{col}_normalized") for col in feature_cols
+    ]).collect()
+
 
     # 7. Initialize optimizer
     optimizer = DegreeOptimizer(
@@ -116,12 +131,14 @@ def test_degree_optimizer_on_market_data():
     print("\nStarting optimization...")
     # 8. Get final data for optimization
     # Only collect at the last moment when needed
-    final_df = normalized_lf.collect()
-    print(final_df.describe())
+    feature_data = normalized_lf.select([pl.col(f"{col}_normalized") for col in feature_cols]).collect()
+    target_data = normalized_lf.select('resp_normalized').collect()
+    print(feature_data.describe())
     optimal_degrees = optimizer.optimize_layer(
         layer_idx=0,
-        x_data=final_df,
-        y_data=final_df.get_column('resp_normalized').to_numpy(),
+        x_data=feature_data,
+        y_data=target_data.to_numpy(),
+        time_data=normalized_lf.select('date_id').collect(),
         num_reads=1000
     )
 

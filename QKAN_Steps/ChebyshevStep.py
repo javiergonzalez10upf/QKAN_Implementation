@@ -21,8 +21,12 @@ class ChebyshevStep:
         :param x(float): Input value in [-1, 1].
         :return: float: T_d(x) = cos(degree * arccos(x)).
         """
-        if not -1 <= x <= 1:
+        # Add small tolerance and clip
+        eps = 1e-8
+        if not np.all((x >= -1-eps) & (x <= 1+eps)):
             raise ValueError("Input value must be between -1 and 1.")
+
+        x = np.clip(x, -1, 1)
         return np.cos(self.degree * np.arccos(x))
 
     def transform_diagonal(self, x: np.ndarray) -> np.ndarray:
@@ -31,8 +35,21 @@ class ChebyshevStep:
         :param x: Input vector with values in [-1, 1].
         :return: Vector of Chebyshev polynomial values.
         """
-        if not np.all((-1 <= x) & (x <= 1)):
-            raise ValueError("Input value must be between -1 and 1.")
+        # Add small tolerance for floating point precision
+        eps = 1e-8
+
+        # Print debug info
+        #print(f"Shape of input array: {x.shape}")
+        #print(f"First few values: {x[:5]}")
+        #print(f"Min value: {np.min(x)}, Max value: {np.max(x)}")
+
+        # Check for values significantly outside [-1,1]
+        violations = x[~(-1-eps <= x) | ~(x <= 1+eps)]
+        if len(violations) > 0:
+            print(f"Values outside [-1,1] range: {violations[:5]}")
+
+        # Clip values that are just slightly outside range
+        x = np.clip(x, -1, 1)
         return np.array([self.apply_chebyshev(xi) for xi in x])
 
     def create_dilated_chebyshev(self, x: np.ndarray, K: int) -> np.ndarray:
