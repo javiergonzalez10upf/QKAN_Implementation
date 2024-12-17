@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import polars as pl
 import numpy as np
 from DegreeOptimizer import DegreeOptimizer
@@ -65,6 +67,35 @@ def normalize_to_chebyshev_domain(lf: pl.LazyFrame, feature_cols: list) -> pl.La
     # Then select required columns with proper names
     return temp_lf
 
+def get_simple_split(timestamps: pl.DataFrame,
+                     weights: np.ndarray,
+                     train_ratio: float = 0.8) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Create a simple train-validation split based on timestamps.
+
+    Args:
+        timestamps: DataFrame containing date_id timestamps
+        data: Input DataFrame with normalized features
+        weights: Sample weights array
+        train_ratio: Ratio of data to use for training (default 0.8)
+
+    Returns:
+        Tuple of (train_mask, val_mask, train_weights, val_weights)
+    """
+    unique_timestamps = timestamps.get_column('date_id').unique().sort()
+    split_idx = int(len(unique_timestamps) * train_ratio)
+
+    train_times = unique_timestamps[:split_idx]
+    val_times = unique_timestamps[split_idx:]
+
+    train_mask = timestamps.get_column('date_id').is_in(train_times).to_numpy()
+    val_mask = timestamps.get_column('date_id').is_in(val_times).to_numpy()
+
+    train_weights = weights[train_mask]
+    val_weights = weights[val_mask]
+
+    return train_mask, val_mask, train_weights, val_weights
+
 def test_degree_optimizer_on_market_data():
     """Test DegreeOptimizer on Jane Street market data with proper lazy evaluation"""
     print("Starting market data test...")
@@ -86,60 +117,59 @@ def test_degree_optimizer_on_market_data():
              .select([
         pl.col("date_id"),
         pl.col("responder_6").alias("resp"),
-        pl.col('weight')
+        pl.col('weight'),
         *[pl.col(f) for f in feature_cols]
     ])
-             .limit(1000000)
+             .limit(100000)
              .sort("date_id"))
 
     # 5. Normalize features for Chebyshev polynomials
     print("\nNormalizing features to [-1,1]...")
     normalized_lf = normalize_to_chebyshev_domain(query, feature_cols)
 
-    dates = normalized_lf.select('date_id').collect().unique()
-    n_dates = len(dates)
+    # 5. Create train-val split
+    train_mask, val_mask, train_weights, val_weights = get_simple_split(
+        timestamps=normalized_lf.select('date_id').collect(),
+        weights=normalized_lf.select('weight_normalized').collect().to_numpy(),
+        train_ratio=0.8
+    )
 
-    train_dates = dates[:int(0.6 * n_dates)]
-    val_dates = dates[int(0.6 * n_dates):int(0.8 * n_dates)]
-    test_dates = dates[int(0.8 * n_dates):]
-
-    train_mask = dates.filter(train_dates)
-    val_mask = dates.filter(val_dates)
-    test_mask = dates.filter(test_dates)
+    # 6. Initialize optimizer
+    optimizer = DegreeOptimizer(
+        network_shape=[79, 1],  # 79 features -> 1 output
+        max_degree=6,
+        complexity_weight=0.1,
+        significance_threshold=0.05
+    )
 
     train_data = normalized_lf.filter(train_mask).select([
         pl.col(f'{col}_normalized') for col in feature_cols
     ]).collect()
 
+    train_target = normalized_lf.filter(train_mask).select('resp_normalized').collect()
+
+    # 8. Run optimization
+    optimal_degrees = optimizer.optimize_layer(
+        layer_idx=0,
+        x_data=train_data,
+        y_data=train_target.to_numpy(),
+        time_data=normalized_lf.filter(train_mask).select('date_id').collect(),
+        weights=train_weights,
+        num_reads=1000
+    )
+
+    # 9. Evaluate on validation set
     val_data = normalized_lf.filter(val_mask).select([
         pl.col(f"{col}_normalized") for col in feature_cols
     ]).collect()
 
-    test_data = normalized_lf.filter(test_mask).select([
-        pl.col(f"{col}_normalized") for col in feature_cols
-    ]).collect()
+    val_target = normalized_lf.filter(val_mask).select('resp_normalized').collect()
 
-
-    # 7. Initialize optimizer
-    optimizer = DegreeOptimizer(
-        network_shape=[5, 1],  # 5 inputs -> 1 output
-        max_degree=3,
-        complexity_weight=0.1,
-        significance_threshold=0.05
-    )
-
-    print("\nStarting optimization...")
-    # 8. Get final data for optimization
-    # Only collect at the last moment when needed
-    feature_data = normalized_lf.select([pl.col(f"{col}_normalized") for col in feature_cols]).collect()
-    target_data = normalized_lf.select('resp_normalized').collect()
-    print(feature_data.describe())
-    optimal_degrees = optimizer.optimize_layer(
-        layer_idx=0,
-        x_data=feature_data,
-        y_data=target_data.to_numpy(),
-        time_data=normalized_lf.select('date_id').collect(),
-        num_reads=1000
+    scores = optimizer.evaluate_expressiveness(
+        x_data=val_data,
+        y_data=val_target.to_numpy(),
+        time_data=normalized_lf.filter(val_mask).select('date_id').collect(),
+        weights=val_weights
     )
 
     print("\nResults:")
@@ -149,20 +179,8 @@ def test_degree_optimizer_on_market_data():
         for j, degree in enumerate(degrees):
             print(f"  Feature {j} -> degree {degree}")
 
-    # 9. Performance Analysis
-    print("\nModel Performance:")
-    scores = optimizer.evaluate_expressiveness(
-        x_data=final_df,
-        y_data=final_df.get_column(target_col).to_numpy()
-    )
-
-    print("\nR² scores for different polynomial degrees:")
-    for degree, score in enumerate(scores):
-        print(f"Degree {degree}: {score:.4f}")
-
-    is_definitive, best_degree = optimizer.is_degree_definitive(scores)
-    print(f"\nFound definitive best degree: {is_definitive}")
-    print(f"Best degree identified: {best_degree}")
+    print("\nValidation Performance:")
+    print(f"R² score: {scores[0]:.4f}")
 
 if __name__ == "__main__":
     test_degree_optimizer_on_market_data()

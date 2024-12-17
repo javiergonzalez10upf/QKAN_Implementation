@@ -77,7 +77,7 @@ class DegreeOptimizer(BaseOptimizer):
             folds = self._get_expanding_window_folds(time_data,x_data)
         else:  # time_based
             folds = self._get_time_based_folds(time_data,x_data)
-
+        print(f'Input data size: {x_data.shape}')
         for d in range(self.max_degree + 1):
             fold_metrics = []
             for i, (train_mask, val_mask) in enumerate(folds):
@@ -94,6 +94,12 @@ class DegreeOptimizer(BaseOptimizer):
                 # Rest remains the same
                 fold_id = f"fold_{i}"
 
+                print(f"\nFold {i}:")
+                print(f"Train mask True values: {np.sum(train_mask)}")
+                print(f"Val mask True values: {np.sum(val_mask)}")
+
+                print(f"Train data size: {len(train_data)}")
+                print(f"Val data size: {len(val_data)}")
                 train_features = []
                 val_features = []
                 for degree in range(d + 1):
@@ -111,8 +117,8 @@ class DegreeOptimizer(BaseOptimizer):
                     print(f"Number of train samples: {n_train_samples}")
 
                     # Reshape correctly maintaining sample dimension
-                    train_collapsed = train_collapsed.reshape(n_train_samples, -1)
-                    val_collapsed = val_collapsed.reshape(n_val_samples, -1)
+                    train_collapsed = train_collapsed.reshape(n_train_samples, -1) if n_train_samples > 1 else train_collapsed
+                    val_collapsed = val_collapsed.reshape(n_val_samples, -1) if n_val_samples > 1 else val_collapsed
 
                     train_features.append(train_collapsed)
                     val_features.append(val_collapsed)
@@ -265,11 +271,10 @@ class DegreeOptimizer(BaseOptimizer):
         """
         # MSE calculation (weighted if weights provided)
         squared_errors = (y_true - y_pred) ** 2
-        if weights is not None:
+        if weights and squared_errors:
             mse = np.average(squared_errors, weights=weights)
         else:
             mse = np.mean(squared_errors)
-
         # R² calculation
         if weights is not None:
             # Weighted R² using competition formula
