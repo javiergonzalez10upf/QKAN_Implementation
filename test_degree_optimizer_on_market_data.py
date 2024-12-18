@@ -75,7 +75,6 @@ def get_simple_split(timestamps: pl.DataFrame,
 
     Args:
         timestamps: DataFrame containing date_id timestamps
-        data: Input DataFrame with normalized features
         weights: Sample weights array
         train_ratio: Ratio of data to use for training (default 0.8)
 
@@ -120,7 +119,7 @@ def test_degree_optimizer_on_market_data():
         pl.col('weight'),
         *[pl.col(f) for f in feature_cols]
     ])
-             .limit(100000)
+             .tail(100000)
              .sort("date_id"))
 
     # 5. Normalize features for Chebyshev polynomials
@@ -137,7 +136,7 @@ def test_degree_optimizer_on_market_data():
     # 6. Initialize optimizer
     optimizer = DegreeOptimizer(
         network_shape=[79, 1],  # 79 features -> 1 output
-        max_degree=6,
+        max_degree=3,
         complexity_weight=0.1,
         significance_threshold=0.05
     )
@@ -153,7 +152,6 @@ def test_degree_optimizer_on_market_data():
         layer_idx=0,
         x_data=train_data,
         y_data=train_target.to_numpy(),
-        time_data=normalized_lf.filter(train_mask).select('date_id').collect(),
         weights=train_weights,
         num_reads=1000
     )
@@ -165,10 +163,9 @@ def test_degree_optimizer_on_market_data():
 
     val_target = normalized_lf.filter(val_mask).select('resp_normalized').collect()
 
-    scores = optimizer.evaluate_expressiveness(
+    scores = optimizer.evaluate_degree(
         x_data=val_data,
         y_data=val_target.to_numpy(),
-        time_data=normalized_lf.filter(val_mask).select('date_id').collect(),
         weights=val_weights
     )
 

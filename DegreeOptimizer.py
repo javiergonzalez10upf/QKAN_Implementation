@@ -50,93 +50,38 @@ class DegreeOptimizer(BaseOptimizer):
             transforms[d] = np.stack(transformed_features, axis=1)
 
         return transforms
-    def evaluate_expressiveness(self,
-                                x_data: pl.DataFrame,
-                                y_data: np.ndarray,
-                                time_data: pl.DataFrame,
-                                weights: np.ndarray = None,
-                                cv_strategy: str = 'expanding_window'
-                                ) -> Tuple[np.ndarray, List[List[Dict[str,float]]]]:
+
+    def evaluate_degree(self, x_data: pl.DataFrame, y_data: np.ndarray, weights: np.ndarray = None) -> np.ndarray:
         """
-        Calculate R^2 scores using chosen cross-validation strategy.
-        :param weights: Optional sample weights
-        :param x_data: INput data as DataFrame
-        :param y_data: Target data
-        :param time_data: Time data as numpy array
-        :param cv_strategy: Cross-validation strategy
-        :return: Array of R^2 scores for each degree
-        """
+            Calculate R² scores for each degree directly without cross-validation.
+            """
+        scores = np.zeros(self.max_degree + 1)
 
-        mse_scores = np.zeros(self.max_degree + 1)
-        fold_metrics_per_degree = []
+        feature_data = x_data.to_numpy()
 
-
-
-        # Get folds based on strategy
-        if cv_strategy == 'expanding_window':
-            folds = self._get_expanding_window_folds(time_data,x_data)
-        else:  # time_based
-            folds = self._get_time_based_folds(time_data,x_data)
-        print(f'Input data size: {x_data.shape}')
         for d in range(self.max_degree + 1):
-            fold_metrics = []
-            for i, (train_mask, val_mask) in enumerate(folds):
-                # Get train/val data using masks
-                train_data = x_data.filter(train_mask)
-                val_data = x_data.filter(val_mask)
-                
-                # Get corresponding y data
-                train_y = y_data[train_mask]
-                val_y = y_data[val_mask]
+            # Get transforms up to this degree
+            transforms = []
+            for degree in range(d + 1):
+                degree_transform = self._compute_transforms(feature_data)[degree]
+                transforms.append(degree_transform.reshape(len(feature_data), -1))
 
-                val_weights = weights[val_mask] if weights is not None else None
+            # Stack features
+            X = np.hstack(transforms) if transforms else np.zeros((len(y_data), 0))
 
-                # Rest remains the same
-                fold_id = f"fold_{i}"
+            # Fit and predict
+            coeffs = np.linalg.lstsq(X, y_data, rcond=None)[0]
+            y_pred = X @ coeffs
 
-                print(f"\nFold {i}:")
-                print(f"Train mask True values: {np.sum(train_mask)}")
-                print(f"Val mask True values: {np.sum(val_mask)}")
+            # Calculate metrics
+            metrics = self._compute_metrics(y_data, y_pred, weights)
+            scores[d] = metrics['mse']  # or r2 depending on what we want to optimize
 
-                print(f"Train data size: {len(train_data)}")
-                print(f"Val data size: {len(val_data)}")
-                train_features = []
-                val_features = []
-                for degree in range(d + 1):
-                    # Get collapsed combinations
-                    train_collapsed = self._compute_collapsed_combinations(train_data, f"{fold_id}_train")[degree]
-                    val_collapsed = self._compute_collapsed_combinations(val_data, f"{fold_id}_val")[degree]
+            print(f"\nDegree {d}:")
+            print(f"MSE: {metrics['mse']:.4f}")
+            print(f"R²:  {metrics['r2']:.4f}")
 
-                    # Reshape preserving the sample dimension
-                    n_train_samples = len(train_data)
-                    n_val_samples = len(val_data)
-
-                    # Print shapes for debugging
-                    print(f"Degree {degree}:")
-                    print(f"Original train_collapsed shape: {train_collapsed.shape}")
-                    print(f"Number of train samples: {n_train_samples}")
-
-                    # Reshape correctly maintaining sample dimension
-                    train_collapsed = train_collapsed.reshape(n_train_samples, -1) if n_train_samples > 1 else train_collapsed
-                    val_collapsed = val_collapsed.reshape(n_val_samples, -1) if n_val_samples > 1 else val_collapsed
-
-                    train_features.append(train_collapsed)
-                    val_features.append(val_collapsed)
-                X_train = np.hstack(train_features) if train_features else np.zeros((len(train_y), 0))
-                X_val = np.hstack(val_features) if val_features else np.zeros((len(val_y), 0))
-                # Fit and predict
-                coeffs = np.linalg.lstsq(X_train, train_y, rcond=None)[0]
-                val_pred = X_val @ coeffs
-
-                metrics = self._compute_metrics(val_y, val_pred, val_weights)
-                fold_metrics.append(metrics)
-
-
-            mse_scores[d] = np.mean([m['mse'] for m in fold_metrics])
-            fold_metrics_per_degree.append(fold_metrics)
-
-        return mse_scores, fold_metrics_per_degree
-
+        return scores
     def is_degree_definitive(self, scores: np.ndarray) -> tuple[bool, int]:
         """
         Determine if there's a definitively best degree based on R² scores.
@@ -162,7 +107,7 @@ class DegreeOptimizer(BaseOptimizer):
         return is_definitive, best_degree
 
     def optimize_layer(self, layer_idx: int, x_data: pl.DataFrame, y_data: np.ndarray, 
-                      time_data:pl.DataFrame, weights:np.ndarray, num_reads: int = 1000) -> List[List[int]]:
+                       weights:np.ndarray, num_reads: int = 1000) -> List[List[int]]:
         """
         Optimize degrees for a single layer.
         Args:
@@ -182,16 +127,10 @@ class DegreeOptimizer(BaseOptimizer):
 
         q = Array.create('q', shape=(num_functions, self.max_degree + 1), vartype='BINARY')
 
-        scores, fold_metrics = self.evaluate_expressiveness(x_data, y_data, time_data, weights)
+        scores = self.evaluate_degree(x_data, y_data, weights)
 
         # Print metrics per degree for monitoring if needed
-        print("\nDegree optimization metrics:")
-        for d in range(self.max_degree + 1):
-            mse_vals = [metrics['mse'] for metrics in fold_metrics[d]]
-            r2_vals = [metrics['r2'] for metrics in fold_metrics[d]]
-            print(f"\nDegree {d}:")
-            print(f"  MSE: {np.mean(mse_vals):.4f} (±{np.std(mse_vals):.4f})")
-            print(f"  R²:  {np.mean(r2_vals):.4f} (±{np.std(r2_vals):.4f})")
+        print("Optimize_layer using annealer")
 
         is_definitive, definitive_degree = self.is_degree_definitive(scores)
         
@@ -271,7 +210,7 @@ class DegreeOptimizer(BaseOptimizer):
         """
         # MSE calculation (weighted if weights provided)
         squared_errors = (y_true - y_pred) ** 2
-        if weights and squared_errors:
+        if weights is not None:
             mse = np.average(squared_errors, weights=weights)
         else:
             mse = np.mean(squared_errors)

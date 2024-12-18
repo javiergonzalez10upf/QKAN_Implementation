@@ -1,0 +1,121 @@
+
+
+Degree 0:
+MSE: 0.2539
+R²:  0.0000
+Degree 1:
+MSE: 0.2459
+R²:  0.0000
+
+Degree 2:
+MSE: 0.2426
+R²:  0.0000
+
+Degree 3:
+MSE: 0.2390
+R²:  0.0000
+
+
+Optimize_layer using annealer
+
+Degree 0:
+MSE: 0.3242
+R²:  0.0000
+
+Degree 1:
+MSE: 0.2942
+R²:  0.0000
+
+Degree 2:
+MSE: 0.2971
+R²:  0.0000
+
+Degree 3:
+MSE: 0.2785
+R²:  0.0000
+
+Results:
+Optimal polynomial degrees found:
+Output node 0:
+  Feature 0 -> degree 0
+  Feature 1 -> degree 0
+  Feature 2 -> degree 2
+  Feature 3 -> degree 1
+  Feature 4 -> degree 1
+  Feature 5 -> degree 0
+  Feature 6 -> degree 1
+  Feature 7 -> degree 0
+  Feature 8 -> degree 1
+  Feature 9 -> degree 0
+  Feature 10 -> degree 1
+  Feature 11 -> degree 0
+  Feature 12 -> degree 0
+  Feature 13 -> degree 1
+  Feature 14 -> degree 1
+  Feature 15 -> degree 1
+  Feature 16 -> degree 3
+  Feature 17 -> degree 0
+  Feature 18 -> degree 0
+  Feature 19 -> degree 0
+  Feature 20 -> degree 1
+  Feature 21 -> degree 0
+  Feature 22 -> degree 0
+  Feature 23 -> degree 0
+  Feature 24 -> degree 1
+  Feature 25 -> degree 1
+  Feature 26 -> degree 1
+  Feature 27 -> degree 1
+  Feature 28 -> degree 1
+  Feature 29 -> degree 3
+  Feature 30 -> degree 2
+  Feature 31 -> degree 2
+  Feature 32 -> degree 2
+  Feature 33 -> degree 1
+  Feature 34 -> degree 0
+  Feature 35 -> degree 0
+  Feature 36 -> degree 0
+  Feature 37 -> degree 0
+  Feature 38 -> degree 1
+  Feature 39 -> degree 1
+  Feature 40 -> degree 2
+  Feature 41 -> degree 3
+  Feature 42 -> degree 0
+  Feature 43 -> degree 0
+  Feature 44 -> degree 0
+  Feature 45 -> degree 1
+  Feature 46 -> degree 2
+  Feature 47 -> degree 2
+  Feature 48 -> degree 0
+  Feature 49 -> degree 0
+  Feature 50 -> degree 1
+  Feature 51 -> degree 0
+  Feature 52 -> degree 3
+  Feature 53 -> degree 0
+  Feature 54 -> degree 0
+  Feature 55 -> degree 2
+  Feature 56 -> degree 0
+  Feature 57 -> degree 1
+  Feature 58 -> degree 1
+  Feature 59 -> degree 2
+  Feature 60 -> degree 1
+  Feature 61 -> degree 1
+  Feature 62 -> degree 1
+  Feature 63 -> degree 2
+  Feature 64 -> degree 0
+  Feature 65 -> degree 1
+  Feature 66 -> degree 1
+  Feature 67 -> degree 1
+  Feature 68 -> degree 2
+  Feature 69 -> degree 2
+  Feature 70 -> degree 2
+  Feature 71 -> degree 0
+  Feature 72 -> degree 0
+  Feature 73 -> degree 2
+  Feature 74 -> degree 2
+  Feature 75 -> degree 3
+  Feature 76 -> degree 0
+  Feature 77 -> degree 0
+  Feature 78 -> degree 0
+
+Validation Performance:
+R² score: 0.3242
