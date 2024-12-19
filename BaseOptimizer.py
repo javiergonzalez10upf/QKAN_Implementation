@@ -110,14 +110,14 @@ class BaseOptimizer(ABC):
         """
         return np.mean((y_true - predictions) ** 2)
 
-    def save_state(self, filename: str) -> None:
+    def save_state(self, filename: str, ) -> None:
         """
         Save optimizer state.
         Must be implemented by child classes.
         """
         pass
 
-    def load_state(self, filename: str) -> None:
+    def load_state(self, filename: str, current_query_params: dict) -> None:
         """
         Load optimizer state.
         Must be implemented by child classes.

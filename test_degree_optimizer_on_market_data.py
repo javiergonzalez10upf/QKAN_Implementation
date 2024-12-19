@@ -1,7 +1,11 @@
+import time
 from typing import Tuple
 
 import polars as pl
 import numpy as np
+import torch
+from torch import nn
+from torch.nn.functional as F
 from DegreeOptimizer import DegreeOptimizer
 
 def validate_market_data_schema(lf: pl.LazyFrame) -> None:
@@ -111,7 +115,6 @@ def test_degree_optimizer_on_market_data():
     target_col = "resp"
 
     # 4. Create initial lazy query
-    # Take first 100k samples sorted by date
     query = (lf
              .select([
         pl.col("date_id"),
@@ -140,6 +143,12 @@ def test_degree_optimizer_on_market_data():
         complexity_weight=0.1,
         significance_threshold=0.05
     )
+    query_params = {
+        'n_rows': 100000,
+        'columns': ['date_id_normalized', 'resp_normalized', 'weight_normalized'] + [f'feature_{i:02d}_normalized' for i in range(79)],
+        'sort_by':'date_id',
+    }
+    optimizer.save_state('optimizer_state.npy', query_params=query_params)
 
     train_data = normalized_lf.filter(train_mask).select([
         pl.col(f'{col}_normalized') for col in feature_cols
@@ -178,6 +187,49 @@ def test_degree_optimizer_on_market_data():
 
     print("\nValidation Performance:")
     print(f"R² score: {scores[0]:.4f}")
+
+
+def compare_models(x_train, y_train, x_val, y_val, weights_train=None, weights_val=None):
+    results = {}
+
+    #1. QKAN (DegreeOptimizer) baseline
+    optimizer = DegreeOptimizer(
+        network_shape=[79, 1], max_degree=5,
+    )
+
+    start_time = time.time()
+    optimal_degrees = optimizer.optimize_layer(
+        layer_idx=0,
+        x_data=x_train,
+        y_data=y_train,
+        weights=weights_train,
+        num_reads=1000
+    )
+
+
+    val_scores = optimizer.evaluate_degree(x_val, y_val, weights=weights_val)
+    qkan_time = time.time() - start_time
+    results['QKAN'] = {
+        'mse':val_scores[-1],
+        'train_time':qkan_time,
+
+    }
+
+    #2. Simple MLP baseline
+    mlp = nn.Sequential(
+        nn.Linear(79, 32),
+        nn.ReLU(),
+        nn.Linear(32, 1),
+    )
+
+    start_time = time.time()
+    train_mlp(mlp, x_train, y_train, weights_train)
+    mlp_time = time.time() - start_time
+
+    mlp.eval()
+    with torch.no_grad():
+        val_pred = mlp(torch.FloatTensor(x_val.to_numpy()))
+        mlp_mse = F.mse_loss(val_pred, torch.FloatTensor(y_val.to_numpy())).item()
 
 if __name__ == "__main__":
     test_degree_optimizer_on_market_data()

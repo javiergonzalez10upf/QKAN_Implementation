@@ -29,6 +29,9 @@ class DegreeOptimizer(BaseOptimizer):
         self.max_degree = max_degree
         self.complexity_weight = complexity_weight
         self.significance_threshold = significance_threshold
+        self.transform_cache = {}
+        self.degree_scores = {}
+        self.data_same = True
 
 
     def _compute_transforms(self, feature_data: np.ndarray) -> Dict[int, np.ndarray]:
@@ -55,6 +58,12 @@ class DegreeOptimizer(BaseOptimizer):
         """
             Calculate R² scores for each degree directly without cross-validation.
             """
+        cache_key = str(x_data.schema)
+
+        if cache_key in self.degree_scores and self.data_same:
+            print("Using cached degree scores...")
+            return self.degree_scores[cache_key]
+
         scores = np.zeros(self.max_degree + 1)
 
         feature_data = x_data.to_numpy()
@@ -80,7 +89,7 @@ class DegreeOptimizer(BaseOptimizer):
             print(f"\nDegree {d}:")
             print(f"MSE: {metrics['mse']:.4f}")
             print(f"R²:  {metrics['r2']:.4f}")
-
+            self.degree_scores[cache_key] = scores
         return scores
     def is_degree_definitive(self, scores: np.ndarray) -> tuple[bool, int]:
         """
@@ -230,22 +239,47 @@ class DegreeOptimizer(BaseOptimizer):
             'mse': mse,
             'r2': r2
         }
-    def save_state(self, filename: str) -> None:
+    def save_state(self, filename: str, query_params: Dict = None) -> None:
         """Save optimizer state"""
+        if query_params is None:
+            query_params = {
+                'n_rows': 100000,
+                'columns': ['date_id', 'responder_6', 'weight'] + [f'feature_{i:02d}' for i in range(79)],
+                'sort_by': 'date_id',
+            }
         state = {
             'network_shape': self.network_shape,
             'max_degree': self.max_degree,
             'complexity_weight': self.complexity_weight,
             'significance_threshold': self.significance_threshold,
-            'fold_caches': self._fold_caches
+            'transform_cache': self.transform_cache,
+            'degree_scores': self.degree_scores,
+            'query_params' : query_params,
         }
         np.save(filename, state)
 
-    def load_state(self, filename: str) -> None:
-        """Load optimizer state"""
+    def load_state(self, filename: str, current_query_params:dict) -> None:
+        """Load optimizer state and validate query matches"""
         state = np.load(filename, allow_pickle=True).item()
+
+        # Load basic parameters
         self.network_shape = state['network_shape']
         self.max_degree = state['max_degree']
         self.complexity_weight = state['complexity_weight']
         self.significance_threshold = state['significance_threshold']
-        self._fold_caches = state['fold_caches']
+
+        # Validate query matches
+        if self._validate_query(state['query_params'], current_query_params):
+            print("Loading cached computations")
+            self.transform_cache = state['transform_cache']
+            self.degree_scores = state['degree_scores']
+        else:
+            print("Query changed, clearing caches")
+            self.data_same = False
+            self.transform_cache = {}
+            self.degree_scores = {}
+    def _validate_query(self, saved_params: dict, current_query_params: dict) -> bool:
+        """Validate query matches"""
+        return (saved_params['n_rows'] == current_query_params['n_rows'] and
+                saved_params['columns'] == current_query_params['columns'] and
+                saved_params['sort_by'] == current_query_params['sort_by'])
