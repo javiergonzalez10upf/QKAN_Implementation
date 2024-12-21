@@ -40,21 +40,29 @@ class DegreeOptimizer(BaseOptimizer):
         Compute Chebyshev transforms for all degrees up to max_degree.
         """
         transforms = {}
-        n_samples = len(feature_data)
+        n_samples,n_features = feature_data.shape
+
+
+
 
         for d in range(self.max_degree + 1):
             cheb_step = ChebyshevStep(degree=d)
             # Transform each feature separately and maintain sample dimension
             transformed_features = []
-            for feature_idx in range(feature_data.shape[1]):
+            for feature_idx in range(n_features):
                 feature_transform = cheb_step.transform_diagonal(feature_data[:, feature_idx])
+                if not isinstance(feature_transform, np.ndarray):
+                    raise TypeError(f"Transform returned {type(feature_transform)} instead of numpy array")
+                if feature_transform.ndim != 1:
+                    feature_transform = feature_transform.ravel()
                 transformed_features.append(feature_transform)
 
             transforms[d] = np.stack(transformed_features, axis=1)
+            print(f"Degree {d} transform shape: {transforms[d].shape}")
 
         return transforms
 
-    def evaluate_degree(self, x_data: pl.DataFrame, y_data: np.ndarray, weights: np.ndarray = None) -> np.ndarray:
+    def evaluate_degree(self, x_data: pl.DataFrame, y_data: np.ndarray, weights: np.ndarray = None) -> Tuple[np.ndarray, np.ndarray]:
         """
             Calculate R² scores for each degree directly without cross-validation.
             """
@@ -65,7 +73,7 @@ class DegreeOptimizer(BaseOptimizer):
             return self.degree_scores[cache_key]
 
         scores = np.zeros(self.max_degree + 1)
-
+        comp_r2 = np.zeros(self.max_degree + 1)# This is just here to keep track
         feature_data = x_data.to_numpy()
 
         for d in range(self.max_degree + 1):
@@ -85,12 +93,12 @@ class DegreeOptimizer(BaseOptimizer):
             # Calculate metrics
             metrics = self._compute_metrics(y_data, y_pred, weights)
             scores[d] = metrics['mse']  # or r2 depending on what we want to optimize
-
+            comp_r2[d] = metrics['r2']
             print(f"\nDegree {d}:")
-            print(f"MSE: {metrics['mse']:.4f}")
-            print(f"R²:  {metrics['r2']:.4f}")
-            self.degree_scores[cache_key] = scores
-        return scores
+            print(f"MSE: {metrics['mse']:.8f}")
+            print(f"R²:  {metrics['r2']:.8f}")
+            #self.degree_scores[cache_key] = scores
+        return scores, comp_r2
     def is_degree_definitive(self, scores: np.ndarray) -> tuple[bool, int]:
         """
         Determine if there's a definitively best degree based on R² scores.
@@ -136,7 +144,7 @@ class DegreeOptimizer(BaseOptimizer):
 
         q = Array.create('q', shape=(num_functions, self.max_degree + 1), vartype='BINARY')
 
-        scores = self.evaluate_degree(x_data, y_data, weights)
+        scores,comp_r2 = self.evaluate_degree(x_data, y_data, weights)
 
         # Print metrics per degree for monitoring if needed
         print("Optimize_layer using annealer")
@@ -217,6 +225,10 @@ class DegreeOptimizer(BaseOptimizer):
         :param weights: Optional sample weights
         :return: Dictionary with both metrics
         """
+        y_true = np.asarray(y_true).reshape(-1, 1)
+        y_pred = np.asarray(y_pred).reshape(-1, 1)
+        if weights is not None:
+            weights = np.asarray(weights).reshape(-1, 1)
         # MSE calculation (weighted if weights provided)
         squared_errors = (y_true - y_pred) ** 2
         if weights is not None:
@@ -225,19 +237,22 @@ class DegreeOptimizer(BaseOptimizer):
             mse = np.mean(squared_errors)
         # R² calculation
         if weights is not None:
-            # Weighted R² using competition formula
-            weighted_squared_errors_sum = np.sum(weights * squared_errors)
-            weighted_y_squared_sum = np.sum(weights * y_true ** 2)
-            r2 = 1 - weighted_squared_errors_sum / weighted_y_squared_sum if weighted_y_squared_sum > 0 else 0.0
+            ss_tot = np.sum(weights * squared_errors)
+            ss_res = np.sum(weights * y_true ** 2)
         else:
-            # Unweighted R²
+            y_mean = np.mean(y_true)
+            ss_tot = np.sum((y_true - y_mean) ** 2)
             ss_res = np.sum(squared_errors)
-            ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
-            r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
-
+        # Add numerical stability check
+        eps = np.finfo(float).eps
+        if ss_tot < eps:
+            print(f"Warning: Total sum of squares ({ss_tot}) near zero - data might be over-normalized")
+            r2 = 0.0
+        else:
+            r2 = 1 - ss_tot/ss_res
         return {
-            'mse': mse,
-            'r2': r2
+            'mse': float(mse),
+            'r2': float(r2)
         }
     def save_state(self, filename: str, query_params: Dict = None) -> None:
         """Save optimizer state"""

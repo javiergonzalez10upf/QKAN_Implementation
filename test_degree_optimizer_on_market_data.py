@@ -5,8 +5,10 @@ import polars as pl
 import numpy as np
 import torch
 from torch import nn
-from torch.nn.functional as F
+import torch.nn.functional as F
 from DegreeOptimizer import DegreeOptimizer
+from train_utils import train_mlp
+
 
 def validate_market_data_schema(lf: pl.LazyFrame) -> None:
     """
@@ -41,14 +43,11 @@ def normalize_to_chebyshev_domain(lf: pl.LazyFrame, feature_cols: list) -> pl.La
         pl.col('resp').quantile(.95).alias("resp_q95"),
         pl.col('resp').quantile(.05).alias("resp_q05"),
         pl.col('resp').std().alias("resp_std"),
-        pl.col('weight').quantile(.95).alias("weight_q95"),
-        pl.col('weight').quantile(.05).alias("weight_q05"),
-        pl.col('weight').std().alias("weight_std"),
     ]).collect()
 
     # Create normalization expressions
     normalized_features_and_resp = []
-    for col in feature_cols + ['resp','weight']:
+    for col in feature_cols + ['resp']:
         q05 = stats.get_column(f"{col}_q05")[0]
         q95 = stats.get_column(f"{col}_q95")[0]
         std = stats.get_column(f"{col}_std")[0]
@@ -132,7 +131,7 @@ def test_degree_optimizer_on_market_data():
     # 5. Create train-val split
     train_mask, val_mask, train_weights, val_weights = get_simple_split(
         timestamps=normalized_lf.select('date_id').collect(),
-        weights=normalized_lf.select('weight_normalized').collect().to_numpy(),
+        weights=query.select('weight').collect().to_numpy(),
         train_ratio=0.8
     )
 
@@ -143,12 +142,12 @@ def test_degree_optimizer_on_market_data():
         complexity_weight=0.1,
         significance_threshold=0.05
     )
-    query_params = {
-        'n_rows': 100000,
-        'columns': ['date_id_normalized', 'resp_normalized', 'weight_normalized'] + [f'feature_{i:02d}_normalized' for i in range(79)],
-        'sort_by':'date_id',
-    }
-    optimizer.save_state('optimizer_state.npy', query_params=query_params)
+    # query_params = {
+    #     'n_rows': 100000,
+    #     'columns': ['date_id_normalized', 'resp_normalized', 'weight_normalized'] + [f'feature_{i:02d}_normalized' for i in range(79)],
+    #     'sort_by':'date_id',
+    # }
+    #optimizer.save_state('optimizer_state.npy', query_params=query_params)
 
     train_data = normalized_lf.filter(train_mask).select([
         pl.col(f'{col}_normalized') for col in feature_cols
@@ -172,7 +171,8 @@ def test_degree_optimizer_on_market_data():
 
     val_target = normalized_lf.filter(val_mask).select('resp_normalized').collect()
 
-    scores = optimizer.evaluate_degree(
+    #TODO: we need to look at the comp_r2 here to be properly calculated again.
+    scores,comp_r2 = optimizer.evaluate_degree(
         x_data=val_data,
         y_data=val_target.to_numpy(),
         weights=val_weights
@@ -186,7 +186,8 @@ def test_degree_optimizer_on_market_data():
             print(f"  Feature {j} -> degree {degree}")
 
     print("\nValidation Performance:")
-    print(f"R² score: {scores[0]:.4f}")
+    print(f"MSE score: {np.average(scores):.4f}")
+    print(f'Comp R2 score: {np.average(comp_r2):.4f}')
 
 
 def compare_models(x_train, y_train, x_val, y_val, weights_train=None, weights_val=None):
@@ -194,7 +195,8 @@ def compare_models(x_train, y_train, x_val, y_val, weights_train=None, weights_v
 
     #1. QKAN (DegreeOptimizer) baseline
     optimizer = DegreeOptimizer(
-        network_shape=[79, 1], max_degree=5,
+        network_shape=[79, 1],
+        max_degree=3,
     )
 
     start_time = time.time()
@@ -212,6 +214,7 @@ def compare_models(x_train, y_train, x_val, y_val, weights_train=None, weights_v
     results['QKAN'] = {
         'mse':val_scores[-1],
         'train_time':qkan_time,
+        'degrees': optimal_degrees,
 
     }
 
@@ -230,6 +233,10 @@ def compare_models(x_train, y_train, x_val, y_val, weights_train=None, weights_v
     with torch.no_grad():
         val_pred = mlp(torch.FloatTensor(x_val.to_numpy()))
         mlp_mse = F.mse_loss(val_pred, torch.FloatTensor(y_val.to_numpy())).item()
-
+    results['MLP'] = {
+        'mse':mlp_mse,
+        'train_time':mlp_time,
+        'params': sum(p.numel() for p in mlp.parameters()),
+    }
 if __name__ == "__main__":
     test_degree_optimizer_on_market_data()
