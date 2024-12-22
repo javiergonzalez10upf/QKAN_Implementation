@@ -1,0 +1,30 @@
+name: qkan_market_prediction
+data:
+  data_path: "~/Interning/Kaggle/jane_street_kaggle/jane-street-real-time-market-data-forecasting/train.parquet/"
+  n_rows: 1000000
+  train_ratio: 0.8
+  feature_cols: auto  # List your feature columns
+  target_col: "responder_6"
+  weight_col: "weight"
+  date_col: "date_id"
+
+models:
+  - model_type: "qkan"
+    network_shape: [ 79, 1 ]  # 5 features -> 1 output
+    max_degree: 3
+    complexity_weight: 0.1
+    significance_threshold: 0.05
+  - model_type: "mlp"
+    network_shape: [ 79, 64, 64, 64, 1 ]  # Change from [79, 32, 1]
+    hidden_dims: [ 64, 64, 64 ]           # Change from [32]
+    learning_rate: 0.00008              # Change from 0.001
+    batch_size: 32
+    n_epochs: 50
+
+
+
+
+random_seed: 42
+num_trials: 3
+save_path: "./results"
+log_path: "./logs"

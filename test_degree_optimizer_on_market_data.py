@@ -101,7 +101,7 @@ def get_simple_split(timestamps: pl.DataFrame,
 def test_degree_optimizer_on_market_data():
     """Test DegreeOptimizer on Jane Street market data with proper lazy evaluation"""
     print("Starting market data test...")
-
+    start_time = time.time()
     # 1. Load data using lazy evaluation
     lf = pl.scan_parquet("~/Interning/Kaggle/jane_street_kaggle/jane-street-real-time-market-data-forecasting/train.parquet/").fill_null(3)
 
@@ -121,7 +121,7 @@ def test_degree_optimizer_on_market_data():
         pl.col('weight'),
         *[pl.col(f) for f in feature_cols]
     ])
-             .tail(100000)
+             .tail(250000)
              .sort("date_id"))
 
     # 5. Normalize features for Chebyshev polynomials
@@ -132,7 +132,7 @@ def test_degree_optimizer_on_market_data():
     train_mask, val_mask, train_weights, val_weights = get_simple_split(
         timestamps=normalized_lf.select('date_id').collect(),
         weights=query.select('weight').collect().to_numpy(),
-        train_ratio=0.8
+        train_ratio=0.7
     )
 
     # 6. Initialize optimizer
@@ -177,7 +177,7 @@ def test_degree_optimizer_on_market_data():
         y_data=val_target.to_numpy(),
         weights=val_weights
     )
-
+    end_time = time.time()
     print("\nResults:")
     print("Optimal polynomial degrees found:")
     for i, degrees in enumerate(optimal_degrees):
@@ -188,7 +188,7 @@ def test_degree_optimizer_on_market_data():
     print("\nValidation Performance:")
     print(f"MSE score: {np.average(scores):.4f}")
     print(f'Comp R2 score: {np.average(comp_r2):.4f}')
-
+    print(f'time elapsed: {end_time - start_time:.4f} seconds')
 
 def compare_models(x_train, y_train, x_val, y_val, weights_train=None, weights_val=None):
     results = {}
