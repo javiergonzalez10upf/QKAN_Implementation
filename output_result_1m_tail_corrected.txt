@@ -1,0 +1,800 @@
+Degree 0:
+MSE: 0.23559581
+R²:  0.01658746
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+
+Degree 1:
+MSE: 0.23331338
+R²:  0.02611467
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+
+Degree 2:
+MSE: 0.23283443
+R²:  0.02811385
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+
+Degree 3:
+MSE: 0.23255912
+R²:  0.02926305
+Optimize_layer using annealer
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+
+Degree 0:
+MSE: 0.23533529
+R²:  0.01952686
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+
+Degree 1:
+MSE: 0.23247236
+R²:  0.03145462
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+
+Degree 2:
+MSE: 0.23153635
+R²:  0.03535429
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+
+Degree 3:
+MSE: 0.23059964
+R²:  0.03925689
+2024-12-25 17:23:17,851 - __main__ - INFO - Trial 0 complete for qkan
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+
+Degree 0:
+MSE: 0.23559581
+R²:  0.01658746
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+
+Degree 1:
+MSE: 0.23331338
+R²:  0.02611467
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+
+Degree 2:
+MSE: 0.23283443
+R²:  0.02811385
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+
+Degree 3:
+MSE: 0.23255912
+R²:  0.02926305
+Optimize_layer using annealer
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+
+Degree 0:
+MSE: 0.23533529
+R²:  0.01952686
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+
+Degree 1:
+MSE: 0.23247236
+R²:  0.03145462
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+
+Degree 2:
+MSE: 0.23153635
+R²:  0.03535429
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+
+Degree 3:
+MSE: 0.23059964
+R²:  0.03925689
+2024-12-25 21:09:16,345 - __main__ - INFO - Trial 1 complete for qkan
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+
+Degree 0:
+MSE: 0.23559581
+R²:  0.01658746
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+
+Degree 1:
+MSE: 0.23331338
+R²:  0.02611467
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+
+Degree 2:
+MSE: 0.23283443
+R²:  0.02811385
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 0 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 1 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 2 transform shape: (774456, 79)
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Values outside [-1,1] range: [1.00000012]
+Values outside [-1,1] range: [-1.00000012]
+Degree 3 transform shape: (774456, 79)
+
+Degree 3:
+MSE: 0.23255912
+R²:  0.02926305
+Optimize_layer using annealer
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+
+Degree 0:
+MSE: 0.23533529
+R²:  0.01952686
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+
+Degree 1:
+MSE: 0.23247236
+R²:  0.03145462
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+
+Degree 2:
+MSE: 0.23153635
+R²:  0.03535429
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+Degree 0 transform shape: (225544, 79)
+Degree 1 transform shape: (225544, 79)
+Degree 2 transform shape: (225544, 79)
+Degree 3 transform shape: (225544, 79)
+
+Degree 3:
+MSE: 0.23059964
+R²:  0.03925689
