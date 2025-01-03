@@ -7,6 +7,7 @@ import neal
 
 from BaseOptimizer import BaseOptimizer
 from QKAN_Steps.ChebyshevStep import ChebyshevStep
+from QKAN_Steps.QKANLayer import QKANLayer
 
 
 class DegreeOptimizer(BaseOptimizer):
@@ -32,7 +33,66 @@ class DegreeOptimizer(BaseOptimizer):
         self.transform_cache = {}
         self.degree_scores = {}
         self.data_same = True
+        self.optimal_degrees = None
+        self.coefficients = None
+        self.feature_means=None
+        self.feature_stds=None
+        self.qkan_layer: QKANLayer = None
 
+    def fit(self, x_data: pl.DataFrame, y_data: np.ndarray, weights: np.ndarray=None) -> None:
+        self.optimal_degrees = self.optimize_layer(
+            layer_idx=0,
+            x_data=x_data,
+            y_data=y_data,
+            weights=weights,
+        )
+
+        feature_data = x_data.to_numpy()
+        self.feature_means = np.mean(feature_data, axis=0)
+        self.feature_stds = np.std(feature_data, axis=0) + 1e-8
+
+        N = self.network_shape[0]
+        K = self.network_shape[1]
+
+        self.qkan_layer = QKANLayer(
+            N=N,
+            K=K,
+            max_degree=self.max_degree,
+        )
+
+        weight_vectors = []
+        for d in range(self.max_degree + 1):
+            weights = np.zeros(N * K)
+
+            for out_idx, connections in enumerate(self.optimal_degrees):
+                for in_idx, degree in enumerate(connections):
+                    if degree == d:
+                        idx = out_idx * N + in_idx
+                        weights[idx] = 1.0
+
+            weight_vectors.append(weights)
+
+        for d,w in enumerate(weight_vectors):
+            self.qkan_layer.mul_step.set_weights(d, w)
+
+    def predict(self, x_data: pl.DataFrame) -> np.ndarray:
+        """Make predictions using QKAN Layer"""
+        if self.qkan_layer is None:
+            raise RuntimeError('Not fitted yet')
+        feature_data = x_data.to_numpy()
+        normalized_data = (feature_data - self.feature_means) / self.feature_stds
+
+        weights = []
+        for d in range(self.max_degree + 1):
+            weights.append(self.qkan_layer.mul_step._weights[d])
+
+        predictions = self.qkan_layer.forward(
+            x=normalized_data,
+            weights=weights,  # Pass weights to forward
+            verbose=False
+        )
+
+        return predictions
 
     def _compute_transforms(self, feature_data: np.ndarray) -> Dict[int, np.ndarray]:
         """
@@ -41,9 +101,6 @@ class DegreeOptimizer(BaseOptimizer):
         """
         transforms = {}
         n_samples,n_features = feature_data.shape
-
-
-
 
         for d in range(self.max_degree + 1):
             cheb_step = ChebyshevStep(degree=d)
@@ -255,13 +312,25 @@ class DegreeOptimizer(BaseOptimizer):
             'r2': float(r2)
         }
     def save_state(self, filename: str, query_params: Dict = None) -> None:
-        """Save optimizer state"""
+        """Save optimizer state including QKAN layer"""
         if query_params is None:
             query_params = {
                 'n_rows': 100000,
                 'columns': ['date_id', 'responder_6', 'weight'] + [f'feature_{i:02d}' for i in range(79)],
                 'sort_by': 'date_id',
             }
+
+        # Save QKAN parameters if fitted
+        qkan_params = None
+        if self.qkan_layer is not None:
+            qkan_params = {
+                'weights': [self.qkan_layer.mul_step._weights[d].copy()
+                            for d in range(self.max_degree + 1)],
+                'feature_means': self.feature_means.copy(),
+                'feature_stds': self.feature_stds.copy(),
+                'optimal_degrees': self.optimal_degrees.copy()
+            }
+
         state = {
             'network_shape': self.network_shape,
             'max_degree': self.max_degree,
@@ -269,12 +338,13 @@ class DegreeOptimizer(BaseOptimizer):
             'significance_threshold': self.significance_threshold,
             'transform_cache': self.transform_cache,
             'degree_scores': self.degree_scores,
-            'query_params' : query_params,
+            'query_params': query_params,
+            'qkan_params': qkan_params
         }
         np.save(filename, state)
 
-    def load_state(self, filename: str, current_query_params:dict) -> None:
-        """Load optimizer state and validate query matches"""
+    def load_state(self, filename: str, current_query_params: dict) -> None:
+        """Load optimizer state and recreate QKAN layer"""
         state = np.load(filename, allow_pickle=True).item()
 
         # Load basic parameters
@@ -283,7 +353,23 @@ class DegreeOptimizer(BaseOptimizer):
         self.complexity_weight = state['complexity_weight']
         self.significance_threshold = state['significance_threshold']
 
-        # Validate query matches
+        # Restore QKAN if it was saved
+        if state['qkan_params'] is not None:
+            qkan_params = state['qkan_params']
+            self.feature_means = qkan_params['feature_means']
+            self.feature_stds = qkan_params['feature_stds']
+            self.optimal_degrees = qkan_params['optimal_degrees']
+
+            # Recreate QKAN layer
+            N = self.network_shape[0]
+            K = self.network_shape[1]
+            self.qkan_layer = QKANLayer(N=N, K=K, max_degree=self.max_degree)
+
+            # Restore weights
+            for d, weights in enumerate(qkan_params['weights']):
+                self.qkan_layer.mul_step.set_weights(d, weights)
+
+        # Load cache if query matches
         if self._validate_query(state['query_params'], current_query_params):
             print("Loading cached computations")
             self.transform_cache = state['transform_cache']
