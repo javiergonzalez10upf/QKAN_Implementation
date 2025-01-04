@@ -11,7 +11,7 @@ class TestTorchDegreeOptimizer(unittest.TestCase):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.config = DegreeOptimizerConfig(
             network_shape=[1, 10, 1],  # Simple 1D function
-            max_degree=5,
+            max_degree=10,
             complexity_weight=0.1,
             significance_weight=0.05
         )
@@ -58,7 +58,7 @@ class TestTorchDegreeOptimizer(unittest.TestCase):
 
                 # 3. Selected degrees allow good fit
                 y_pred = self.optimizer.predict(x_data)
-                mse = torch.mean((y_data - y_pred)**2)
+                mse = self.optimizer._compute_metrics(y_data, y_pred)['mse']
                 self.assertLess(mse, 0.1)
 
     def test_sin_fitting(self):

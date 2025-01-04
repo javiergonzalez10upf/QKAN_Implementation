@@ -161,6 +161,8 @@ def run_interactive_test(
             
         # Optimize and plot
         optimizer.fit(x, y)
+        results = optimizer.analyze_network(x, y)
+        optimizer.visualize_analysis(results,x, y)
         plot_degree_optimization_improved(
             optimizer, x, y,
             title=f'Test Function {i+1}: {func.__name__}'
@@ -169,8 +171,8 @@ def run_interactive_test(
 # Example usage:
 if __name__ == "__main__":
     config = DegreeOptimizerConfig(
-        network_shape=[1, 10, 1],
-        max_degree=25,
+        network_shape=[1, 10,10, 1],
+        max_degree=7,
         complexity_weight=0.1,
         significance_weight=0.05
     )
@@ -178,7 +180,7 @@ if __name__ == "__main__":
     
     # Define test functions
     def polynomial(x: torch.Tensor) -> torch.Tensor:
-        return 1.0 + 2.0*x + 3.0*x**2 + torch.pi * x**5
+        return -1.23451 * x**7 + torch.exp(x)
         
     def sinusoidal(x: torch.Tensor) -> torch.Tensor:
         return torch.sin(2*torch.pi*x**2) + torch.cos(2*torch.pi*x**2)
