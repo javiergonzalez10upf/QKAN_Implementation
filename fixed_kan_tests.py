@@ -1,9 +1,14 @@
 import unittest
+from datetime import datetime
+
 import torch
 import numpy as np
 from typing import Tuple
 
-from KAN_w_cumulative_polynomials import FixedKANConfig, FixedKAN, KANNeuron
+
+from torchvision import datasets, transforms
+
+from KAN_w_cumulative_polynomials import FixedKANConfig, FixedKAN
 
 
 class TestFixedKAN(unittest.TestCase):
@@ -116,7 +121,7 @@ class TestFixedKAN(unittest.TestCase):
 
         # Create deeper network
         config = FixedKANConfig(
-            network_shape=[1, 5, 5, 1],  # Three layers
+            network_shape=[1, 10, 5, 1],  # Three layers
             max_degree=5
         )
         kan = FixedKAN(config)
@@ -161,7 +166,7 @@ class TestFixedKAN(unittest.TestCase):
         mse_new = torch.mean((y_pred_new - y_data) ** 2)
 
         # Compare with previous implementation
-        from TorchDegreeOptimizer import DegreeOptimizer, DegreeOptimizerConfig
+        from first_conversion_torch.TorchDegreeOptimizer import DegreeOptimizer, DegreeOptimizerConfig
         old_config = DegreeOptimizerConfig(
             network_shape=[1, 10, 1],
             max_degree=7
@@ -235,7 +240,7 @@ class TestFixedKAN(unittest.TestCase):
 
         # Create network
         config = FixedKANConfig(
-            network_shape=[2, 1000, 1],
+            network_shape=[2, 10, 1],
             max_degree=5
         )
         kan = FixedKAN(config)
@@ -283,5 +288,121 @@ class TestFixedKAN(unittest.TestCase):
 
         # Show detailed network analysis
         kan.visualize_analysis(analysis, x_data, y_data)
+
+    def test_mnist_classification(self):
+        """Test fitting a complex MNIST classification function with QUBO degree opimization"""
+        import time
+        import json
+        network_shape = [784, 256,128,10]
+        max_degree = 5
+        experiment_config = {
+            'date': datetime.now().strftime("%b-%d-%Y-%I-%M-%S"),
+            'train_size': 2500,
+            'network_shape': network_shape,
+            'max_degree': max_degree,
+            'test_size': 10000, #Full MNIST test set
+        }
+
+        start_time = time.time()
+
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.1307,), (0.3081,))])
+
+        train_dataset = datasets.MNIST(root='./data', train=True, transform=transform, download=True)
+        test_dataset = datasets.MNIST(root='./data', train=False, transform=transform, download=True)
+
+        train_size = 2500
+        train_indices = torch.randperm(len(train_dataset))[:train_size]
+        x_train = train_dataset.data[train_indices].reshape(-1, 784).float() / 255.0
+        y_train_labels = train_dataset.targets[train_indices]
+        y_train = torch.zeros((train_size, 10))
+        y_train.scatter_(1, y_train_labels.unsqueeze(1), 1)
+
+        # Use full test set for validation
+        x_test = test_dataset.data.reshape(-1, 784).float() / 255.0
+        y_test_labels = test_dataset.targets
+
+        config = FixedKANConfig(
+            network_shape=network_shape,
+            max_degree=max_degree,
+        )
+        kan = FixedKAN(config)
+        # Train on training data
+        train_start = time.time()
+        print("Training on training set...")
+        kan.optimize(x_train, y_train)
+        train_end = time.time()
+        training_time = train_end - train_start
+
+        # Save model
+        torch.save(kan.state_dict(), 'models/mnist_kan.pt')
+
+        # Test on both train and test sets
+        with torch.no_grad():
+            # Training set accuracy
+            y_pred_train = kan(x_train)
+            train_predictions = torch.argmax(y_pred_train, dim=1)
+            train_accuracy = (train_predictions == y_train_labels).float().mean()
+
+            # Test set accuracy
+            y_pred_test = kan(x_test)
+            test_predictions = torch.argmax(y_pred_test, dim=1)
+            test_accuracy = (test_predictions == y_test_labels).float().mean()
+
+        total_time = time.time() - start_time
+
+        # Compile results
+        results = {
+            **experiment_config,
+            "metrics": {
+                "train_accuracy": float(train_accuracy),
+                "test_accuracy": float(test_accuracy),
+                "training_time_seconds": training_time,
+                "total_time_seconds": total_time
+            }
+        }
+
+        # Save results
+        with open('mnist_kan_results.json', 'w') as f:
+            json.dump(results, f, indent=4)
+
+        print("\nExperiment Results:")
+        print(f"Training Size: {experiment_config['train_size']}")
+        print(f"Network Shape: {experiment_config['network_shape']}")
+        print(f"Training Time: {training_time:.2f} seconds ({training_time/60:.2f} minutes)")
+        print(f"Total Time: {total_time:.2f} seconds ({total_time/60:.2f} minutes)")
+        print(f"Train Accuracy: {train_accuracy:.4f}")
+        print(f"Test Accuracy: {test_accuracy:.4f}")
+
+        # Save model
+        torch.save({
+            'model_state_dict': kan.state_dict(),
+            'config': experiment_config,
+            'results': results
+        }, f'./models/mnist_kan_model_{test_accuracy:.4f}.pt')
+
+        # Visualize random samples from test set
+        import matplotlib.pyplot as plt
+
+        # Select random indices from test set
+        test_size = len(test_dataset)
+        vis_indices = torch.randperm(test_size)[:20]  # Select 20 random samples
+
+        fig, axes = plt.subplots(4, 5, figsize=(15, 12))
+        for i, ax in enumerate(axes.flat):
+            if i < 20:
+                idx = vis_indices[i]
+                # Plot image
+                ax.imshow(x_test[idx].reshape(28, 28), cmap='gray')
+                # Color based on correct/incorrect
+                color = 'green' if test_predictions[idx] == y_test_labels[idx] else 'red'
+                ax.set_title(f'True: {y_test_labels[idx].item()}\nPred: {test_predictions[idx].item()}',
+                             color=color)
+            ax.axis('off')
+
+        plt.suptitle(f'Random Test Samples (Test Accuracy: {test_accuracy.item():.4f})')
+        plt.tight_layout()
+        plt.show()
 if __name__ == '__main__':
     unittest.main(argv=['first-arg-is-ignored'], exit=False)

@@ -6,8 +6,8 @@ from pyqubo import Array
 import neal
 
 from BaseOptimizer import BaseOptimizer
-from QKAN_Steps.ChebyshevStep import ChebyshevStep
-from QKAN_Steps.QKANLayer import QKANLayer
+from QKAN_Steps_original.ChebyshevStep import ChebyshevStep
+from QKAN_Steps_original.QKANLayer import QKANLayer
 
 
 class DegreeOptimizer(BaseOptimizer):

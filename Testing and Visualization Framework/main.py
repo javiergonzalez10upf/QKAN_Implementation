@@ -5,9 +5,9 @@ from pathlib import Path
 
 import numpy as np
 from torch import nn
-from DegreeOptimizer import DegreeOptimizer
+from original_degree_optimizer.DegreeOptimizer import DegreeOptimizer
 from data_pipeline import DataPipeline
-from config import ExperimentConfig,load_config, DataConfig
+from config import ExperimentConfig,load_config
 from train_utils import train_mlp
 from evaluation import ModelResult, ModelEvaluator
 from visualization import ResultVisualizer
