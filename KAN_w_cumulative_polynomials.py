@@ -1,7 +1,12 @@
+import numpy as np
 import torch
 import torch.nn as nn
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
+
+from matplotlib import pyplot as plt
+from scipy.interpolate import griddata
+
 
 @dataclass
 class FixedKANConfig:
@@ -23,10 +28,18 @@ class KANNeuron(nn.Module):
     def _compute_cumulative_transform(self, x: torch.Tensor, degree: int) -> torch.Tensor:
         """Compute transforms using all polynomials up to degree"""
         transforms = []
-        for d in range(degree + 1):  # Use ALL polynomials up to degree
-            transform = torch.special.chebyshev_polynomial_t(x.squeeze(), n=d)
-            transforms.append(transform)
-        return torch.stack(transforms, dim=1)
+        batch_size, input_dim = x.shape
+
+        for dim in range(input_dim):
+            dim_transforms = []
+            x_dim = x[:, dim]
+
+            for d in range(degree + 1):
+                transform = torch.special.chebyshev_polynomial_t(x_dim, n=d)
+                dim_transforms.append(transform)
+            transforms.append(torch.stack(dim_transforms, dim=1))
+        X = torch.cat(transforms, dim=1)
+        return X
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass using cumulative polynomials"""
@@ -159,23 +172,60 @@ class FixedKAN(nn.Module):
             current = layer(current)
         return current
 
-    def analyze_network(self, x: torch.Tensor) -> Dict[str, torch.Tensor]:
-        """Analyze network showing neuron contributions"""
+    def analyze_network(self, x_data: torch.Tensor) -> Dict[str, torch.Tensor]:
+        """
+        Analyze network showing neuron contributions for multivariate input.
+        Args:
+            x_data: Input tensor [batch_size, input_dim]
+        Returns:
+            Dictionary containing analysis for each layer:
+            - neuron_outputs: Outputs of each neuron [num_neurons, batch_size, 1]
+            - neuron_input_contributions: Per-dimension contributions
+            - degrees: Selected degrees for each neuron
+            - combined_output: Sum of neuron outputs [batch_size, 1]
+            - input_dim: Number of input dimensions
+        """
         analysis = {}
-        current_input = x
+        current_input = x_data
+        #input_dim = x_data.shape[1]
 
         for layer_idx, layer in enumerate(self.layers):
+            input_dim = current_input.shape[1]
             # Get each neuron's contribution
             neuron_outputs = []
+            neuron_input_contributions = []  # Track contribution per input dimension
+
+            # For each neuron in the layer
             for neuron in layer.neurons:
-                output = neuron(current_input)
+                # Get transform
+                transforms = []
+                for dim in range(input_dim):
+                    dim_transforms = []
+                    x_dim = current_input[:, dim]
+
+                    # Compute polynomials 0 to degree for this dimension
+                    for d in range(neuron.selected_degree + 1):
+                        transform = torch.special.chebyshev_polynomial_t(x_dim, n=d)
+                        dim_transforms.append(transform)
+
+                    transforms.append(torch.stack(dim_transforms, dim=1))
+
+                # Combine transforms and get output
+                X = torch.cat(transforms, dim=1)  # [batch_size, (degree+1)*input_dim]
+                output = X @ neuron.coefficients  # [batch_size, 1]
+
                 neuron_outputs.append(output)
+                neuron_input_contributions.append(transforms)  # Store per-dimension contributions
+
+            neuron_outputs = torch.stack(neuron_outputs)  # [num_neurons, batch_size, 1]
 
             # Store analysis
             analysis[f'layer_{layer_idx}'] = {
-                'neuron_outputs': torch.stack(neuron_outputs),
+                'neuron_outputs': neuron_outputs,
+                'neuron_input_contributions': neuron_input_contributions,
                 'degrees': [n.selected_degree for n in layer.neurons],
-                'combined_output': torch.stack(neuron_outputs).sum(dim=0)
+                'combined_output': neuron_outputs.sum(dim=0),  # [batch_size, 1]
+                'input_dim': input_dim
             }
 
             # Update input for next layer
@@ -183,57 +233,115 @@ class FixedKAN(nn.Module):
 
         return analysis
 
-    def visualize_analysis(
-            self,
-            analysis: Dict[str, torch.Tensor],
-            x_data: torch.Tensor,
-            y_data: Optional[torch.Tensor] = None
-    ) -> None:
-        """Visualize network behavior"""
-        import matplotlib.pyplot as plt
+    def visualize_analysis(self, analysis: Dict[str, torch.Tensor], x_data: torch.Tensor,
+                           y_data: Optional[torch.Tensor] = None) -> None:
+        """
+        Visualize network analysis for multivariate input.
+        Args:
+            analysis: Dictionary from analyze_network()
+            x_data: Input tensor [batch_size, input_dim]
+            y_data: Optional target tensor [batch_size, 1]
+        """
+
         num_layers = len(self.layers)
+        input_dim = x_data.shape[1]
 
-        fig = plt.figure(figsize=(15, 5*num_layers))
-        gs = plt.GridSpec(num_layers, 2)
+        if input_dim == 2:
+            # 2D visualization with surface and contour plots
+            fig = plt.figure(figsize=(20, 8*num_layers))
+            gs = plt.GridSpec(num_layers, 3)
 
-        for layer_idx in range(num_layers):
-            layer_data = analysis[f'layer_{layer_idx}']
+            for layer_idx in range(num_layers):
+                layer_data = analysis[f'layer_{layer_idx}']
+                x_plot = x_data.detach().cpu().numpy()
 
-            # Plot contributions
-            ax1 = fig.add_subplot(gs[layer_idx, 0])
-            x_plot = x_data.detach().cpu().numpy()
+                # Sort points for better surface plotting
+                sort_idx = np.lexsort((x_plot[:, 1], x_plot[:, 0]))
+                x_plot = x_plot[sort_idx]
 
-            # Plot original data for final layer
-            if layer_idx == num_layers-1 and y_data is not None:
-                y_plot = y_data.detach().cpu().numpy()
-                ax1.scatter(x_plot, y_plot, alpha=0.3, label='Target')
+                # 3D surface plot
+                ax1 = fig.add_subplot(gs[layer_idx, 0], projection='3d')
 
-            # Plot neuron outputs
-            neuron_outputs = layer_data['neuron_outputs'].detach().cpu().numpy()
-            for i, (output, degree) in enumerate(zip(
-                    neuron_outputs,
-                    layer_data['degrees']
-            )):
-                ax1.plot(x_plot, output, '--', alpha=0.7,
-                         label=f'Neuron {i} (deg={degree})')
+                # Plot neuron outputs
+                neuron_outputs = layer_data['neuron_outputs'].detach().cpu().numpy()
+                for i, (output, degree) in enumerate(zip(neuron_outputs, layer_data['degrees'])):
+                    output = output.squeeze()[sort_idx]
+                    ax1.scatter(x_plot[:, 0], x_plot[:, 1], output,
+                                alpha=0.3, label=f'Neuron {i} (deg={degree})')
 
-            # Plot combined output
-            combined = layer_data['combined_output'].detach().cpu().numpy()
-            ax1.plot(x_plot, combined, 'r-', linewidth=2,
-                     label='Layer Output')
+                # Plot combined output
+                combined = layer_data['combined_output'].detach().cpu().numpy().squeeze()[sort_idx]
+                ax1.scatter(x_plot[:, 0], x_plot[:, 1], combined,
+                            c='red', alpha=0.7, label='Layer Output')
 
-            ax1.set_title(f'Layer {layer_idx+1} Contributions')
-            ax1.legend()
-            ax1.grid(True)
+                if layer_idx == num_layers-1 and y_data is not None:
+                    y_plot = y_data.detach().cpu().numpy().squeeze()[sort_idx]
+                    ax1.scatter(x_plot[:, 0], x_plot[:, 1], y_plot,
+                                c='black', alpha=0.5, label='Target')
 
-            # Plot degree distribution
-            ax2 = fig.add_subplot(gs[layer_idx, 1])
-            degrees = layer_data['degrees']
-            ax2.hist(degrees, bins=range(self.config.max_degree + 2),
-                     alpha=0.7, rwidth=0.8)
-            ax2.set_title(f'Layer {layer_idx+1} Degree Distribution')
-            ax2.set_xlabel('Degree')
-            ax2.set_ylabel('Count')
+                ax1.set_title(f'Layer {layer_idx+1} Contributions')
+                ax1.set_xlabel('Input 1')
+                ax1.set_ylabel('Input 2')
+                ax1.set_zlabel('Output')
+                ax1.legend()
+
+                # Create regular grid for interpolation
+                n_grid = 50
+                x1_unique = np.linspace(x_plot[:, 0].min(), x_plot[:, 0].max(), n_grid)
+                x2_unique = np.linspace(x_plot[:, 1].min(), x_plot[:, 1].max(), n_grid)
+                X1, X2 = np.meshgrid(x1_unique, x2_unique)
+
+                # Contour plot of combined output
+                ax2 = fig.add_subplot(gs[layer_idx, 1])
+                grid_points = np.column_stack([X1.ravel(), X2.ravel()])
+                Z = griddata(x_plot, combined, (X1, X2), method='cubic')
+                contour = ax2.contourf(X1, X2, Z, levels=20, cmap='viridis')
+                plt.colorbar(contour, ax=ax2)
+
+                ax2.set_title(f'Layer {layer_idx+1} Output Contours')
+                ax2.set_xlabel('Input 1')
+                ax2.set_ylabel('Input 2')
+
+                # Degree distribution
+                ax3 = fig.add_subplot(gs[layer_idx, 2])
+                ax3.hist(layer_data['degrees'], bins=range(self.config.max_degree + 2),
+                         alpha=0.7, rwidth=0.8)
+                ax3.set_title(f'Layer {layer_idx+1} Degree Distribution')
+                ax3.set_xlabel('Degree')
+                ax3.set_ylabel('Count')
+
+        else:
+            # For 1D or higher dimensions, show summary plots
+            fig = plt.figure(figsize=(15, 5*num_layers))
+            gs = plt.GridSpec(num_layers, 2)
+
+            for layer_idx in range(num_layers):
+                layer_data = analysis[f'layer_{layer_idx}']
+
+                # Plot combined output against first two dimensions
+                ax1 = fig.add_subplot(gs[layer_idx, 0])
+                x_plot = x_data.detach().cpu().numpy()
+                combined = layer_data['combined_output'].detach().cpu().numpy().squeeze()
+
+                if input_dim == 1:
+                    ax1.scatter(x_plot, combined, alpha=0.5)
+                    ax1.set_xlabel('Input')
+                else:
+                    scatter = ax1.scatter(x_plot[:, 0], x_plot[:, 1], c=combined,
+                                          cmap='viridis', alpha=0.5)
+                    plt.colorbar(scatter, ax=ax1)
+                    ax1.set_xlabel('Input 1')
+                    ax1.set_ylabel('Input 2')
+
+                ax1.set_title(f'Layer {layer_idx+1} Output')
+
+                # Degree distribution
+                ax2 = fig.add_subplot(gs[layer_idx, 1])
+                ax2.hist(layer_data['degrees'], bins=range(self.config.max_degree + 2),
+                         alpha=0.7, rwidth=0.8)
+                ax2.set_title(f'Layer {layer_idx+1} Degree Distribution')
+                ax2.set_xlabel('Degree')
+                ax2.set_ylabel('Count')
 
         plt.tight_layout()
         plt.show()

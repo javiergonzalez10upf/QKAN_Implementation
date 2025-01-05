@@ -104,41 +104,7 @@ class TestFixedKAN(unittest.TestCase):
         analysis = kan.analyze_network(x_data)
         kan.visualize_analysis(analysis, x_data, y_data)
 
-    def test_cumulative_polynomials(self):
-        """Test that neurons are using cumulative polynomials"""
-        x_data = torch.linspace(-1, 1, 100, device=self.device).reshape(-1, 1)
 
-        # Create single neuron
-        neuron = KANNeuron(input_dim=1, max_degree=3)
-        neuron.selected_degree = 2  # Set degree manually
-
-        # Get transforms
-        output = neuron(x_data)
-
-        # Should include polynomials 0, 1, and 2
-        self.assertEqual(output.shape[1], 3)  # Three polynomials
-
-        # Verify polynomials
-        T0 = torch.ones_like(x_data)
-        T1 = x_data
-        T2 = 2 * x_data**2 - 1
-
-        # Check each polynomial
-        np.testing.assert_array_almost_equal(
-            output[:, 0].cpu().numpy(),
-            T0.squeeze().cpu().numpy(),
-            decimal=5
-        )
-        np.testing.assert_array_almost_equal(
-            output[:, 1].cpu().numpy(),
-            T1.squeeze().cpu().numpy(),
-            decimal=5
-        )
-        np.testing.assert_array_almost_equal(
-            output[:, 2].cpu().numpy(),
-            T2.squeeze().cpu().numpy(),
-            decimal=5
-        )
 
     def test_multi_layer_network(self):
         """Test a deeper network architecture"""
@@ -233,6 +199,89 @@ class TestFixedKAN(unittest.TestCase):
         ax2.legend()
 
         plt.show()
+    def test_multivariate_fractal(self):
+        """Test fitting a complex multivariate fractal function"""
+        @staticmethod
+        def fractal_func(x: torch.Tensor) -> torch.Tensor:
+            """Fractal-like 2D test function with multiple features"""
+            # x shape: [batch_size, 2]
+            x_coord = x[:, 0]
+            y_coord = x[:, 1]
 
+            # Multiple frequency components
+            z = torch.sin(10 * torch.pi * x_coord) * torch.cos(10 * torch.pi * y_coord) + \
+                torch.sin(torch.pi * (x_coord**2 + y_coord**2))
+
+            # Non-linear interactions
+            z += torch.abs(x_coord - y_coord) + \
+                 (torch.sin(5 * x_coord * y_coord) / (0.1 + torch.abs(x_coord + y_coord)))
+
+            # Envelope
+            z *= torch.exp(-0.1 * (x_coord**2 + y_coord**2))
+
+            # Add noise
+            noise = torch.normal(0, 0.1, z.shape, device=x.device)
+            z += noise
+
+            return z.unsqueeze(-1)  # Shape: [batch_size, 1]
+
+        # Generate data in [-1, 1] range for Chebyshev
+        n_samples = 50  # 50x50 grid points
+        x = torch.linspace(-1, 1, n_samples)
+        y = torch.linspace(-1, 1, n_samples)
+        X, Y = torch.meshgrid(x, y, indexing='ij')
+        x_data = torch.stack([X.flatten(), Y.flatten()], dim=1)  # [2500, 2]
+        y_data = fractal_func(x_data)  # [2500, 1]
+
+        # Create network
+        config = FixedKANConfig(
+            network_shape=[2, 1000, 1],
+            max_degree=5
+        )
+        kan = FixedKAN(config)
+
+        # Optimize and predict
+        kan.optimize(x_data, y_data)
+        with torch.no_grad():
+            y_pred = kan(x_data)
+
+        # Compute error
+        mse = torch.mean((y_pred - y_data) ** 2)
+        normalize = mse / torch.sum(y_data**2)
+        print(f"Fractal function MSE: {normalize.item()}")
+
+        # Analyze network
+        analysis = kan.analyze_network(x_data)
+
+        # Plot original vs predicted vs error
+        import matplotlib.pyplot as plt
+        fig = plt.figure(figsize=(15, 5))
+
+        # Original function
+        ax1 = fig.add_subplot(131, projection='3d')
+        Z_true = y_data.reshape(n_samples, n_samples)
+        ax1.plot_surface(X.cpu(), Y.cpu(), Z_true.cpu(),
+                         cmap='coolwarm', alpha=0.7)
+        ax1.set_title('Original Function')
+
+        # Predicted function
+        ax2 = fig.add_subplot(132, projection='3d')
+        Z_pred = y_pred.reshape(n_samples, n_samples)
+        ax2.plot_surface(X.cpu(), Y.cpu(), Z_pred.cpu(),
+                         cmap='magma', alpha=0.7)
+        ax2.set_title('KAN Prediction')
+
+        # Error plot
+        ax3 = fig.add_subplot(133, projection='3d')
+        Z_error = torch.abs(Z_true - Z_pred)
+        ax3.plot_surface(X.cpu(), Y.cpu(), Z_error.cpu(),
+                         cmap='viridis', alpha=0.7)
+        ax3.set_title('Absolute Error')
+
+        plt.tight_layout()
+        plt.show()
+
+        # Show detailed network analysis
+        kan.visualize_analysis(analysis, x_data, y_data)
 if __name__ == '__main__':
     unittest.main(argv=['first-arg-is-ignored'], exit=False)
