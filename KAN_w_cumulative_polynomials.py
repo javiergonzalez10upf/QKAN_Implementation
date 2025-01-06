@@ -1,10 +1,13 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
-
+import pennylane as qml
+from fable import fable
 from matplotlib import pyplot as plt
+from qiskit import transpile
+from qiskit_aer import AerSimulator
 from scipy.interpolate import griddata
 
 
@@ -53,24 +56,31 @@ class KANNeuron(nn.Module):
         # Apply stored coefficients
         return transform @ self.coefficients
 
+
+
+
+
 class KANLayer(nn.Module):
     """
     Layer of KAN with fixed number of neurons
     """
-    def __init__(self, input_dim: int, output_dim: int, max_degree: int):
+    def __init__(self, input_dim: int, output_dim: int, max_degree: int, complexity_weight: float = 0.1) -> None:
         super().__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.max_degree = max_degree
-
+        self.complexity_weight = complexity_weight
         # Create fixed number of neurons
         self.neurons = nn.ModuleList([
             KANNeuron(input_dim, max_degree)
             for _ in range(output_dim)
         ])
+        self.last_quantum_resources = None
 
-    def optimize_degrees(self, x_data: torch.Tensor, y_data: torch.Tensor) -> None:
-        """Use QUBO to select optimal degrees for each neuron"""
+    def optimize_degrees(self, x_data: torch.Tensor, y_data: torch.Tensor, use_quantum: bool = False) -> None:
+        """Use QUBO to select optimal degrees for each neuron
+        :param use_quantum:
+        """
         from pyqubo import Array
         import neal
 
@@ -81,29 +91,42 @@ class KANLayer(nn.Module):
         # Build QUBO
         H = 0.0
         degree_coeffs = {}
+        quantum_resources = [] if use_quantum else None
         # Evaluate each degree option
         for neuron_idx in range(self.output_dim):
             neuron = self.neurons[neuron_idx]
             degree_coeffs[neuron_idx] = {}
+            scores = []
             for d in range(self.max_degree + 1):
                 # Get transform matrix [batch_size, d+1]
                 X = neuron._compute_cumulative_transform(x_data, d)
 
-                # Solve least squares: X @ β = y
-                coeffs = torch.linalg.lstsq(X, y_data).solution  # [(d+1), 1]
+                if use_quantum:
+                    coeffs,resources = self._optimize_coefficients_quantum(X, y_data)
+                    quantum_resources.append(resources)
+                else:
+                    # Solve least squares: X @ β = y
+                    coeffs = self._optimize_coefficients_classical(X, y_data)  # [(d+1), 1]
+
                 degree_coeffs[neuron_idx][d] = coeffs
 
                 y_pred = X @ coeffs  # [batch_size, 1]
                 mse = torch.mean((y_data - y_pred) ** 2)
+                scores.append(mse.item())
+                # Add terms to QUBO
+            for d in range(self.max_degree + 1):
+                # Calculate improvement from previous degree
+                improvement = scores[d] - scores[d-1] if d > 0 else scores[d]
 
-                # Add to QUBO
-                H += mse * q[neuron_idx, d]
+                # Add improvement term and complexity penalty
+                H += -1.0 * improvement * q[neuron_idx, d]
+                H += self.complexity_weight * (d**2) * q[neuron_idx, d]  # complexity_weight = 0.1
         # Add one-hot constraint - exactly one degree per neuron
         for i in range(self.output_dim):
             constraint = (sum(q[i, d] for d in range(self.max_degree + 1)) - 1)**2
             H += 10.0 * constraint
 
-            # Solve QUBO
+        # Solve QUBO
         model = H.compile()
         bqm = model.to_bqm()
         sampler = neal.SimulatedAnnealingSampler()
@@ -120,6 +143,8 @@ class KANLayer(nn.Module):
                     self.neurons[neuron_idx].selected_degree = d
                     self.neurons[neuron_idx].coefficients = degree_coeffs[neuron_idx][d]
                     break
+        if use_quantum:
+            self.last_quantum_resources = quantum_resources
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass combining all neuron outputs"""
@@ -131,6 +156,55 @@ class KANLayer(nn.Module):
         # Combine outputs (sum as per KAN theorem)
         return torch.stack(outputs).sum(dim=0)
 
+    @staticmethod
+    def _optimize_coefficients_classical(X: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Classical optimization using Least squares"""
+        return torch.linalg.lstsq(X, y).solution
+    def _optimize_coefficients_quantum(self, X: torch.Tensor, y: torch.Tensor) -> Tuple[torch.Tensor,Dict]:
+        """
+        Quantum Optimization using QSVT
+        :param X: Transform matrix [batch_size, d+1]
+        :param y: Target vector [batch_size, 1]
+        :return:
+                coeffs: Optimized coefficients [(d+1), 1]
+                resources: Dictionary containing quantum resource usage
+        """
+        # Convert to numpy
+        X_np = X.detach().numpy()
+        y_np = y.detach().numpy()
+
+        # Initialize simulator
+        simulator = AerSimulator(method='unitary')
+
+        # Get block encoding of X matrix
+        circuit_X, alpha_X = fable(X_np, 0)
+
+        circuit_X = transpile(circuit_X, simulator)
+
+        # Track resources from first encoding
+        resources = {
+            'n_qubits': circuit_X.num_qubits,
+            'circuit_depth': circuit_X.depth(),
+            'gate_count': len(circuit_X.data),
+            'alpha_scaling': alpha_X
+        }
+
+        # Get unitary matrix
+        result = simulator.run(circuit_X).result()
+        unitary = result.get_unitary(circuit_X)
+
+        # Extract encoded matrix
+        N = X_np.shape[0]
+        encoded_X = alpha_X * N * unitary[:N, :N]
+
+        # Solve linear system classically for now
+        # (We can replace this with quantum linear solver later)
+        coeffs = np.linalg.solve(encoded_X, y_np)
+
+        return torch.from_numpy(coeffs).float().reshape(-1, 1), resources
+    def get_last_quantum_resources(self) -> Optional[List[Dict]]:
+        """Get resources from last quantum optimization, if any"""
+        return getattr(self, 'last_quantum_resources', None)
 class FixedKAN(nn.Module):
     """
     Complete Fixed Architecture KAN
@@ -144,12 +218,13 @@ class FixedKAN(nn.Module):
             KANLayer(
                 config.network_shape[i],
                 config.network_shape[i+1],
-                config.max_degree
+                config.max_degree,
+                config.complexity_weight,
             )
             for i in range(len(config.network_shape)-1)
         ])
 
-    def optimize(self, x_data: torch.Tensor, y_data: torch.Tensor) -> None:
+    def optimize(self, x_data: torch.Tensor, y_data: torch.Tensor, use_quantum:bool =False) -> None:
         """Optimize degrees for all layers"""
         current_input = x_data
         for i, layer in enumerate(self.layers):
@@ -160,7 +235,7 @@ class FixedKAN(nn.Module):
                 # TODO: Add intermediate target computation
                 target = y_data
 
-            layer.optimize_degrees(current_input, target)
+            layer.optimize_degrees(current_input, target, use_quantum)
             # Update input for next layer
             with torch.no_grad():
                 current_input = layer(current_input)
