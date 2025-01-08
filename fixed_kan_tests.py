@@ -182,7 +182,7 @@ class TestFixedKAN(unittest.TestCase):
 
         # Create network
         config = FixedKANConfig(
-            network_shape=[2, 5,5, 1],
+            network_shape=[2, 5, 5, 1],
             max_degree=5
         )
         kan = FixedKAN(config)
