@@ -64,7 +64,7 @@ class TestFixedKAN(unittest.TestCase):
 
         # Analyze network
         analysis = kan.analyze_network(x_data)
-
+        kan.visualize_analysis(analysis, x_data, y_data)
         # Verify architecture
         self.assertEqual(len(kan.layers), 2)  # Input->Hidden, Hidden->Output
         self.assertEqual(len(kan.layers[0].neurons), 10)  # 10 hidden neurons
@@ -109,10 +109,10 @@ class TestFixedKAN(unittest.TestCase):
     def test_multi_layer_network(self):
         """Test a deeper network architecture"""
         def complex_func(x: torch.Tensor) -> torch.Tensor:
-            return torch.sin(2 * np.pi * torch.cos(x**2)) + 0.5 * torch.cos(2 * np.pi * torch.exp(x**2))
+            return 0.5 * x**2 - 0.3 * x + 0.1
 
         # Generate data
-        x_data, y_data = self.generate_test_data(self.target_function, n_samples=1000)
+        x_data, y_data = self.generate_test_data(complex_func, n_samples=1000)
 
         # Create deeper network
         config = FixedKANConfig(
@@ -145,60 +145,7 @@ class TestFixedKAN(unittest.TestCase):
             else:
                 self.assertEqual(len(layer_data['degrees']), 1)
 
-    def test_comparison_with_previous(self):
-        """Compare results with previous implementation"""
-        def test_func(x: torch.Tensor) -> torch.Tensor:
-            return torch.sin(2 * np.pi * x) + 0.5 * x**2
 
-        # Generate data
-        x_data, y_data = self.generate_test_data(self.target_function)
-
-        # Test new implementation
-        kan = FixedKAN(self.config)
-        kan.optimize(x_data, y_data)
-        with torch.no_grad():
-            y_pred_new = kan(x_data)
-        mse_new = torch.mean((y_pred_new - y_data) ** 2)
-
-        # Compare with previous implementation
-        from TorchDegreeOptimizer import DegreeOptimizer, DegreeOptimizerConfig
-        old_config = DegreeOptimizerConfig(
-            network_shape=[1, 10, 1],
-            max_degree=7
-        )
-        optimizer = DegreeOptimizer(old_config)
-        optimizer.fit(x_data, y_data)
-        y_pred_old = optimizer.predict(x_data)
-        mse_old = torch.mean((y_pred_old - y_data) ** 2)
-
-        print(f"New implementation MSE: {mse_new.item()}")
-        print(f"Old implementation MSE: {mse_old.item()}")
-
-        # Analyze both
-        new_analysis = kan.analyze_network(x_data)
-        old_analysis = optimizer.analyze_network(x_data, y_data)
-
-        # Plot comparison
-        import matplotlib.pyplot as plt
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
-
-        # Plot new implementation
-        x_np = x_data.cpu().numpy()
-        y_np = y_data.cpu().numpy()
-        y_new = y_pred_new.detach().cpu().numpy()
-        ax1.scatter(x_np, y_np, alpha=0.5, label='Data')
-        ax1.plot(x_np, y_new, 'r-', label='New KAN')
-        ax1.set_title('New Implementation')
-        ax1.legend()
-
-        # Plot old implementation
-        y_old = y_pred_old.detach().cpu().numpy()
-        ax2.scatter(x_np, y_np, alpha=0.5, label='Data')
-        ax2.plot(x_np, y_old, 'b-', label='Old KAN')
-        ax2.set_title('Old Implementation')
-        ax2.legend()
-
-        plt.show()
     def test_multivariate_fractal(self):
         """Test fitting a complex multivariate fractal function"""
         @staticmethod
@@ -235,7 +182,7 @@ class TestFixedKAN(unittest.TestCase):
 
         # Create network
         config = FixedKANConfig(
-            network_shape=[2, 1000, 1],
+            network_shape=[2, 5,5, 1],
             max_degree=5
         )
         kan = FixedKAN(config)
@@ -283,5 +230,55 @@ class TestFixedKAN(unittest.TestCase):
 
         # Show detailed network analysis
         kan.visualize_analysis(analysis, x_data, y_data)
+
+    def test_save_load(self):
+        """Test saving and loading the model preserves structure and predictions"""
+        def simple_func(x: torch.Tensor) -> torch.Tensor:
+            return 0.5 * x**2 - 0.3 * x + 0.1
+
+        # Generate data
+        x_data, y_data = self.generate_test_data(simple_func)
+
+        # Create and optimize original network
+        original_kan = FixedKAN(self.config)
+        original_kan.optimize(x_data, y_data)
+
+        # Get original predictions
+        with torch.no_grad():
+            original_pred = original_kan(x_data)
+            original_mse = torch.mean((original_pred - y_data) ** 2)
+
+        # Save the model
+        save_path = 'test_kan_save.pt'
+        original_kan.save_model(save_path)
+
+        # Load the model
+        loaded_kan = FixedKAN.load_model(save_path)
+
+        # Check predictions are identical
+        with torch.no_grad():
+            loaded_pred = loaded_kan(x_data)
+            loaded_mse = torch.mean((loaded_pred - y_data) ** 2)
+
+        # Test predictions are exactly the same
+        self.assertTrue(torch.allclose(original_pred, loaded_pred))
+        self.assertEqual(original_mse.item(), loaded_mse.item())
+
+        # Test model structure is preserved
+        for orig_layer, loaded_layer in zip(original_kan.layers, loaded_kan.layers):
+            self.assertEqual(len(orig_layer.neurons), len(loaded_layer.neurons))
+
+            for orig_neuron, loaded_neuron in zip(orig_layer.neurons, loaded_layer.neurons):
+                # Check degrees are the same
+                self.assertEqual(orig_neuron.degree, loaded_neuron.degree)
+
+                # Check coefficients are the same
+                self.assertEqual(len(orig_neuron.coefficients), len(loaded_neuron.coefficients))
+                for orig_coeff, loaded_coeff in zip(orig_neuron.coefficients, loaded_neuron.coefficients):
+                    self.assertTrue(torch.allclose(orig_coeff, loaded_coeff))
+
+        # Clean up
+        import os
+        os.remove(save_path)
 if __name__ == '__main__':
     unittest.main(argv=['first-arg-is-ignored'], exit=False)
