@@ -81,7 +81,7 @@ class TestFixedKAN(unittest.TestCase):
             return torch.sin(2 * np.pi * torch.cos(x**2)) + 0.5 * torch.cos(2 * np.pi * torch.exp(x**2))
 
         # Generate data
-        x_data, y_data = self.generate_test_data(self.target_function, n_samples=1000)
+        x_data, y_data = self.generate_test_data(complex_func, n_samples=1000)
 
         # Create network with more hidden neurons
         config = FixedKANConfig(
@@ -147,7 +147,8 @@ class TestFixedKAN(unittest.TestCase):
 
 
     def test_multivariate_fractal(self):
-        """Test fitting a complex multivariate fractal function"""
+        """Test fitting a complex multivariate fractal function and verify save/load works."""
+
         @staticmethod
         def fractal_func(x: torch.Tensor) -> torch.Tensor:
             """Fractal-like 2D test function with multiple features"""
@@ -172,7 +173,9 @@ class TestFixedKAN(unittest.TestCase):
 
             return z.unsqueeze(-1)  # Shape: [batch_size, 1]
 
-        # Generate data in [-1, 1] range for Chebyshev
+        # -----------------------
+        # 1) Generate Data in [-1, 1]
+        # -----------------------
         n_samples = 50  # 50x50 grid points
         x = torch.linspace(-1, 1, n_samples)
         y = torch.linspace(-1, 1, n_samples)
@@ -180,24 +183,48 @@ class TestFixedKAN(unittest.TestCase):
         x_data = torch.stack([X.flatten(), Y.flatten()], dim=1)  # [2500, 2]
         y_data = fractal_func(x_data)  # [2500, 1]
 
-        # Create network
+        # -------------------------
+        # 2) Create and Optimize KAN
+        # -------------------------
         config = FixedKANConfig(
             network_shape=[2, 5, 5, 1],
             max_degree=5
         )
         kan = FixedKAN(config)
 
-        # Optimize and predict
         kan.optimize(x_data, y_data)
         with torch.no_grad():
             y_pred = kan(x_data)
 
-        # Compute error
+        # ----------------------
+        # 3) Compute Error
+        # ----------------------
         mse = torch.mean((y_pred - y_data) ** 2)
-        normalize = mse / torch.sum(y_data**2)
-        print(f"Fractal function MSE: {normalize.item()}")
+        rel_error = mse / torch.sum(y_data**2)
+        print(f"Fractal function Relative MSE: {rel_error.item()}")
 
-        # Analyze network
+        # ------------------------------
+        # 4) Save the Model to a File
+        # ------------------------------
+        save_path = "temp_fractal_kan.pth"
+        kan.save_model(save_path)
+        print(f"Model saved to: {save_path}")
+
+        # --------------------------------------
+        # 5) Load Model and Compare Predictions
+        # --------------------------------------
+        loaded_kan = FixedKAN.load_model(save_path)
+
+        with torch.no_grad():
+            y_pred_loaded = loaded_kan(x_data)
+
+        # Check how close the loaded model’s output is to the original
+        diff_mse = torch.mean((y_pred_loaded - y_pred) ** 2)
+        print(f"Prediction MSE difference after load: {diff_mse.item()}")
+
+        # -----------------------
+        # 6) Analyze and Visualize
+        # -----------------------
         analysis = kan.analyze_network(x_data)
 
         # Plot original vs predicted vs error
@@ -230,7 +257,33 @@ class TestFixedKAN(unittest.TestCase):
 
         # Show detailed network analysis
         kan.visualize_analysis(analysis, x_data, y_data)
+    def test_mnist_dimensionality(self):
+        """Test that network can handle MNIST-like high dimensional input"""
+        # Simulate MNIST dimensions
+        batch_size = 100
+        input_dim = 784  # 28x28 pixels
+        num_classes = 10
 
+        # Create random data
+        x_data = torch.randn(batch_size, input_dim)
+        y_data = torch.randint(0, num_classes, (batch_size, 1)).float()
+
+        # Create network with MNIST dimensions
+        config = FixedKANConfig(
+            network_shape=[784, 32, 16, 10],  # Common MNIST architecture
+            max_degree=3
+        )
+        kan = FixedKAN(config)
+
+        # This should work without any dimension errors
+        kan.optimize(x_data, y_data)
+
+        # Test forward pass
+        with torch.no_grad():
+            y_pred = kan(x_data)
+
+        # Check output dimensions
+        self.assertEqual(y_pred.shape, (batch_size, num_classes))
     def test_save_load(self):
         """Test saving and loading the model preserves structure and predictions"""
         def simple_func(x: torch.Tensor) -> torch.Tensor:

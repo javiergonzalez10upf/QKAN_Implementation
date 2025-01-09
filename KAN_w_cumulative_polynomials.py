@@ -25,6 +25,9 @@ class KANNeuron(nn.Module):
         self.max_degree = max_degree
         self.register_buffer('selected_degree', torch.tensor([-1], dtype=torch.long))
         self.coefficients = None #Store coefficients after optimization
+        #Projection weights/bias for multi-dim input -> scalar
+        self.w = nn.Parameter(torch.randn(input_dim))
+        self.b = nn.Parameter(torch.zeros(1))
     @property
     def degree(self) -> int:
         degree_val = self.selected_degree.item()
@@ -47,17 +50,16 @@ class KANNeuron(nn.Module):
         """Compute transforms using all polynomials up to degree"""
         transforms = []
         if x.dim() == 1:
+            print('Expanding 1D input')
             x = x.unsqueeze(-1)
-        batch_size, input_dim = x.shape
+        print(f'After reshape x shape: {x.shape}')
+        alpha = x.matmul(self.w) + self.b
+        print(f'After projectioin alpha shape {alpha.shape}')
+        #Compute T_k(alpha) for k = 0.. degree
+        for d in range(degree + 1):
+            t_d = torch.special.chebyshev_polynomial_t(alpha, n=d)
+            transforms.append(t_d.unsqueeze(1))
 
-        for dim in range(input_dim):
-            dim_transforms = []
-            x_dim = x[:, dim]
-
-            for d in range(degree + 1):
-                transform = torch.special.chebyshev_polynomial_t(x_dim, n=d)
-                dim_transforms.append(transform)
-            transforms.append(torch.stack(dim_transforms, dim=1))
         X = torch.cat(transforms, dim=1)
         return X
 
@@ -70,7 +72,11 @@ class KANNeuron(nn.Module):
 
         # Get transform
         transform = self._compute_cumulative_transform(x, self.selected_degree)
-        # Apply stored coefficients
+        #transform.shape => [batch_size, degree+1]
+        #self.coefficients is a ParameterList of length (degree+1) each shape [1]
+        #we stack them below
+        #matmul => [batch_size, (degree+1)] @ [ (degree+1) ] => [batch_size]
+        #return shape [batch_size, 1] with unsqueeze
         return torch.matmul(transform, torch.stack([coeffs for coeffs in self.coefficients]))
 
 class KANLayer(nn.Module):
@@ -91,6 +97,7 @@ class KANLayer(nn.Module):
 
     def optimize_degrees(self, x_data: torch.Tensor, y_data: torch.Tensor) -> None:
         """Use QUBO to select optimal degrees for each neuron"""
+        print(f'\nKANLayer optimize_degrees input shape: {x_data.shape}')
         from pyqubo import Array
         import neal
 
@@ -106,9 +113,10 @@ class KANLayer(nn.Module):
             neuron = self.neurons[neuron_idx]
             degree_coeffs[neuron_idx] = {}
             for d in range(self.max_degree + 1):
+                print(f"\nBefore transform - x_data shape: {x_data.shape}")
                 # Get transform matrix [batch_size, d+1]
                 X = neuron._compute_cumulative_transform(x_data, d)
-
+                print(f"After transform - X shape: {X.shape}")
                 # Solve least squares: X @ β = y
                 coeffs = torch.linalg.lstsq(X, y_data).solution  # [(d+1), 1]
                 degree_coeffs[neuron_idx][d] = coeffs
@@ -152,8 +160,7 @@ class KANLayer(nn.Module):
             outputs.append(neuron(x))
 
         # Combine outputs (sum as per KAN theorem)
-        return torch.stack(outputs).sum(dim=0)
-
+        return torch.cat(outputs, dim=1)
 class FixedKAN(nn.Module):
     """
     Complete Fixed Architecture KAN
@@ -175,7 +182,9 @@ class FixedKAN(nn.Module):
     def optimize(self, x_data: torch.Tensor, y_data: torch.Tensor) -> None:
         """Optimize degrees for all layers"""
         current_input = x_data
+        print(f'Initial x_data shape: {x_data.shape}')
         for i, layer in enumerate(self.layers):
+            print(f'\nLayer {i} input shape: {current_input.shape}')
             # For last layer use y_data, otherwise use intermediate target
             if i == len(self.layers) - 1:
                 target = y_data
@@ -187,6 +196,7 @@ class FixedKAN(nn.Module):
             # Update input for next layer
             with torch.no_grad():
                 current_input = layer(current_input)
+                print(f'Layer {i} output shape: {current_input.shape}')
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass through all layers"""
