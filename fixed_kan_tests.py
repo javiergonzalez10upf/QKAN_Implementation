@@ -109,14 +109,14 @@ class TestFixedKAN(unittest.TestCase):
     def test_multi_layer_network(self):
         """Test a deeper network architecture"""
         def complex_func(x: torch.Tensor) -> torch.Tensor:
-            return 0.5 * x**2 - 0.3 * x + 0.1
+            return torch.sin(2 * np.pi * torch.cos(x**2)) + 0.5 * torch.cos(2 * np.pi * torch.exp(x**2))
 
         # Generate data
         x_data, y_data = self.generate_test_data(complex_func, n_samples=1000)
 
         # Create deeper network
         config = FixedKANConfig(
-            network_shape=[1, 5, 5, 1],  # Three layers
+            network_shape=[1, 10, 5, 1],  # Three layers
             max_degree=5
         )
         kan = FixedKAN(config)
@@ -225,7 +225,7 @@ class TestFixedKAN(unittest.TestCase):
         # -----------------------
         # 6) Analyze and Visualize
         # -----------------------
-        analysis = kan.analyze_network(x_data)
+        #analysis = kan.analyze_network(x_data)
 
         # Plot original vs predicted vs error
         import matplotlib.pyplot as plt
@@ -256,7 +256,7 @@ class TestFixedKAN(unittest.TestCase):
         plt.show()
 
         # Show detailed network analysis
-        kan.visualize_analysis(analysis, x_data, y_data)
+        #kan.visualize_analysis(analysis, x_data, y_data)
     def test_mnist_dimensionality(self):
         """Test that network can handle MNIST-like high dimensional input"""
         # Simulate MNIST dimensions

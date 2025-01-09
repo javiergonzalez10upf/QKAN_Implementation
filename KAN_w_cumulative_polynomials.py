@@ -1,11 +1,12 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 
 from matplotlib import pyplot as plt
 from scipy.interpolate import griddata
+from torch import Tensor
 
 
 @dataclass
@@ -14,6 +15,7 @@ class FixedKANConfig:
     network_shape: List[int]  # [input_dim, ..., output_dim]
     max_degree: int  # Maximum polynomial degree
     complexity_weight: float = 0.1
+    trainable_coefficients: bool = False
 
 class KANNeuron(nn.Module):
     """
@@ -28,6 +30,7 @@ class KANNeuron(nn.Module):
         #Projection weights/bias for multi-dim input -> scalar
         self.w = nn.Parameter(torch.randn(input_dim))
         self.b = nn.Parameter(torch.zeros(1))
+        self.W = nn.Parameter(torch.randn(input_dim))
     @property
     def degree(self) -> int:
         degree_val = self.selected_degree.item()
@@ -35,7 +38,7 @@ class KANNeuron(nn.Module):
             raise RuntimeError("Degree not set. Run optimization first.")
         return degree_val
 
-    def set_coefficients(self, coeffs_list: torch.Tensor):
+    def set_coefficients(self, coeffs_list: torch.Tensor, train_coeffs: bool = False):
         """Set coefficients as a ParameterList"""
         # For degree d, we expect d+1 coefficients for T_0(x), T_1(x), ..., T_d(x)
         if len(coeffs_list) != self.degree + 1:
@@ -43,7 +46,7 @@ class KANNeuron(nn.Module):
 
         # Convert to ParameterList
         self.coefficients = nn.ParameterList([
-            nn.Parameter(torch.tensor(coeff)) for coeff in coeffs_list
+            nn.Parameter(torch.tensor(coeff.clone().detach()), requires_grad=train_coeffs) for coeff in coeffs_list
         ])
 
     def _compute_cumulative_transform(self, x: torch.Tensor, degree: int) -> torch.Tensor:
@@ -72,11 +75,8 @@ class KANNeuron(nn.Module):
 
         # Get transform
         transform = self._compute_cumulative_transform(x, self.selected_degree)
-        #transform.shape => [batch_size, degree+1]
-        #self.coefficients is a ParameterList of length (degree+1) each shape [1]
-        #we stack them below
-        #matmul => [batch_size, (degree+1)] @ [ (degree+1) ] => [batch_size]
-        #return shape [batch_size, 1] with unsqueeze
+        #TODO: we need to highlight the dimensions here for future.
+        # I realize the unsqueeze to make it [batch_size, 1] was already done in the compute function
         return torch.matmul(transform, torch.stack([coeffs for coeffs in self.coefficients]))
 
 class KANLayer(nn.Module):
@@ -94,8 +94,12 @@ class KANLayer(nn.Module):
             KANNeuron(input_dim, max_degree)
             for _ in range(output_dim)
         ])
+        # "Big W" for combining the stacked neuron outputs => shape [output_dim, output_dim].
+        # We'll also have a bias => shape [output_dim].
+        self.combine_W = nn.Parameter(torch.eye(output_dim))
+        self.combin_b = nn.Parameter(torch.zeros(output_dim))
 
-    def optimize_degrees(self, x_data: torch.Tensor, y_data: torch.Tensor) -> None:
+    def optimize_degrees(self, x_data: torch.Tensor, y_data: torch.Tensor, train_coeffs: bool) -> None:
         """Use QUBO to select optimal degrees for each neuron"""
         print(f'\nKANLayer optimize_degrees input shape: {x_data.shape}')
         from pyqubo import Array
@@ -149,18 +153,17 @@ class KANLayer(nn.Module):
                     self.neurons[neuron_idx].selected_degree[0] = d
                     # Set coefficients as ParameterList
                     coeffs_list = degree_coeffs[neuron_idx][d]
-                    self.neurons[neuron_idx].set_coefficients(coeffs_list)
+                    self.neurons[neuron_idx].set_coefficients(coeffs_list, train_coeffs=train_coeffs)
                     break
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass combining all neuron outputs"""
         # Get each neuron's contribution
-        outputs = []
-        for neuron in self.neurons:
-            outputs.append(neuron(x))
-
-        # Combine outputs (sum as per KAN theorem)
-        return torch.cat(outputs, dim=1)
+        neuron_outs = [neuron(x) for neuron in self.neurons] # list of [batch_size, 1]
+        stack_out = torch.cat(neuron_outs, dim=1) # => [batch_size, output_dim]
+        # Now apply the "big W" for combining => shape [batch_size, output_dim]
+        # Then add a bias for each dimension
+        # a reminder that the bigW here is a vector with w_i for each of the neuron_i(x)s
+        return torch.matmul(stack_out, self.combine_W) + self.combin_b
 class FixedKAN(nn.Module):
     """
     Complete Fixed Architecture KAN
@@ -168,7 +171,6 @@ class FixedKAN(nn.Module):
     def __init__(self, config: FixedKANConfig):
         super().__init__()
         self.config = config
-
         # Create fixed layers
         self.layers = nn.ModuleList([
             KANLayer(
@@ -192,7 +194,7 @@ class FixedKAN(nn.Module):
                 # TODO: Add intermediate target computation
                 target = y_data
 
-            layer.optimize_degrees(current_input, target)
+            layer.optimize_degrees(current_input, target, train_coeffs=self.config.trainable_coefficients)
             # Update input for next layer
             with torch.no_grad():
                 current_input = layer(current_input)
@@ -242,64 +244,110 @@ class FixedKAN(nn.Module):
         # Now load the state dict with coefficients
         model.load_state_dict(checkpoint['state_dict'])
         return model
-    def analyze_network(self, x_data: torch.Tensor) -> Dict[str, torch.Tensor]:
+
+    def train_model(
+            self,
+            x_data: torch.Tensor,
+            y_data: torch.Tensor,
+            num_epochs: int = 50,
+            lr: float = 1e-3,
+            complexity_weight: float = 0.1,
+            do_qubo: bool = True
+    ):
         """
-        Analyze network showing neuron contributions for multivariate input.
-        Args:
-            x_data: Input tensor [batch_size, input_dim]
-        Returns:
-            Dictionary containing analysis for each layer:
-            - neuron_outputs: Outputs of each neuron [num_neurons, batch_size, 1]
-            - neuron_input_contributions: Per-dimension contributions
-            - degrees: Selected degrees for each neuron
-            - combined_output: Sum of neuron outputs [batch_size, 1]
-            - input_dim: Number of input dimensions
+        1) (Optionally) run QUBO-based optimize() to select polynomial degrees and
+            set Chebyshev coefficients (frozen).
+        2) Gather trainable parameters: neuron (w, b) + layer combine_W, combine_b.
+        3) Train with MSE + optional L2 penalty on w.
+        :param x_data: input data
+        :param y_data: ground truths
+        :param num_epochs: number of training epochs
+        :param lr: learning rate
+        :param complexity_weight: complexity penalty
+        :param do_qubo: use QUBO to select polynomials
+        :return:
+        """
+        if do_qubo:
+            print('[(train_model)] Running QUBO-based optimize first...')
+            self.optimize(x_data, y_data)
+        params_to_train = []
+        for layer in self.layers:
+            params_to_train.append(layer.combine_W)
+            params_to_train.append(layer.combine_b)
+
+            for neuron in layer.neurons:
+                params_to_train.append(neuron.w)
+                params_to_train.append(neuron.b)
+
+        optimizer = torch.optim.Adam(params_to_train, lr=lr)
+
+        for epoch in range(num_epochs):
+            optimizer.zero_grad()
+
+            y_pred = self.forward(x_data)
+            mse = torch.mean((y_pred - y_data) **2)
+
+            w_norm = 0.0
+            # for layer in self.layers:
+            #     for neuron in layer.neurons:
+            #         w_norm += torch.norm(neuron.w, p=2) ** 2
+            #
+            loss = mse + complexity_weight * w_norm
+            loss.backward()
+            optimizer.step()
+            print(f'Epoch {epoch+1}/{num_epochs}, Loss={loss.item():6f}, MSE={mse.item():.6f}')
+        print('[(train_model] Done training!')
+
+    def analyze_network(self, x_data: torch.Tensor) -> dict[str, dict[str, int | Tensor | list[Any]]]:
+        """
+        Analyze network showing each neuron's output and the combined layer output.
+        This version matches how forward() computes alpha = x @ w + b, then T_k(alpha).
         """
         analysis = {}
         current_input = x_data
-        #input_dim = x_data.shape[1]
 
         for layer_idx, layer in enumerate(self.layers):
-            input_dim = current_input.shape[1]
-            # Get each neuron's contribution
             neuron_outputs = []
-            neuron_input_contributions = []  # Track contribution per input dimension
+            degrees = []
 
             # For each neuron in the layer
             for neuron in layer.neurons:
-                # Get transform
-                transforms = []
-                for dim in range(input_dim):
-                    dim_transforms = []
-                    x_dim = current_input[:, dim]
+                # 1. Project input to scalar alpha
+                alpha = current_input @ neuron.w + neuron.b  # shape [batch_size]
 
-                    # Compute polynomials 0 to degree for this dimension
-                    for d in range(neuron.selected_degree + 1):
-                        transform = torch.special.chebyshev_polynomial_t(x_dim, n=d)
-                        dim_transforms.append(transform)
+                # 2. Compute Chebyshev polynomials: T_0, ..., T_degree
+                poly_list = []
+                deg = neuron.degree  # read from selected_degree
+                for d in range(deg + 1):
+                    poly_d = torch.special.chebyshev_polynomial_t(alpha, n=d)
+                    poly_list.append(poly_d.unsqueeze(1))  # shape [batch_size, 1]
 
-                    transforms.append(torch.stack(dim_transforms, dim=1))
+                # 3. Concatenate polynomials along dim=1
+                X = torch.cat(poly_list, dim=1)  # shape [batch_size, deg+1]
 
-                # Combine transforms and get output
-                X = torch.cat(transforms, dim=1)  # [batch_size, (degree+1)*input_dim]
-                output = torch.matmul(X, torch.stack([coeff for coeff in neuron.coefficients]))  # [batch_size, 1]
+                # 4. Multiply by the neuron's coefficients
+                coeffs = torch.stack([c for c in neuron.coefficients])  # shape [deg+1]
+                output = X @ coeffs  # shape [batch_size]
 
-                neuron_outputs.append(output)
-                neuron_input_contributions.append(transforms)  # Store per-dimension contributions
+                # Save the neuron output
+                neuron_outputs.append(output.unsqueeze(-1))  # [batch_size, 1]
+                degrees.append(deg)
 
-            neuron_outputs = torch.stack(neuron_outputs)  # [num_neurons, batch_size, 1]
+            # Stack all neuron outputs in this layer => [num_neurons, batch_size, 1]
+            neuron_outputs = torch.stack(neuron_outputs, dim=1)
 
-            # Store analysis
+            # Sum across all neurons => layer output [batch_size, 1] if you are summing
+            combined_output = neuron_outputs.sum(dim=0)
+
             analysis[f'layer_{layer_idx}'] = {
-                'neuron_outputs': neuron_outputs,
-                'neuron_input_contributions': neuron_input_contributions,
-                'degrees': [n.selected_degree for n in layer.neurons],
-                'combined_output': neuron_outputs.sum(dim=0),  # [batch_size, 1]
-                'input_dim': input_dim
+                'neuron_outputs': neuron_outputs,      # [num_neurons, batch_size, 1]
+                'degrees': degrees,                    # list of int
+                'combined_output': combined_output,    # [batch_size, 1]
+                'input_dim': current_input.shape[1],
             }
 
-            # Update input for next layer
-            current_input = analysis[f'layer_{layer_idx}']['combined_output']
+            # Update current_input for the next layer
+            current_input = combined_output
 
         return analysis
 
