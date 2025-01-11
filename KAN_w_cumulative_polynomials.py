@@ -53,11 +53,11 @@ class KANNeuron(nn.Module):
         """Compute transforms using all polynomials up to degree"""
         transforms = []
         if x.dim() == 1:
-            print('Expanding 1D input')
+            #print('Expanding 1D input')
             x = x.unsqueeze(-1)
-        print(f'After reshape x shape: {x.shape}')
+        #print(f'After reshape x shape: {x.shape}')
         alpha = x.matmul(self.w) + self.b
-        print(f'After projectioin alpha shape {alpha.shape}')
+        #print(f'After projectioin alpha shape {alpha.shape}')
         #Compute T_k(alpha) for k = 0.. degree
         for d in range(degree + 1):
             t_d = torch.special.chebyshev_polynomial_t(alpha, n=d)
@@ -97,11 +97,11 @@ class KANLayer(nn.Module):
         # "Big W" for combining the stacked neuron outputs => shape [output_dim, output_dim].
         # We'll also have a bias => shape [output_dim].
         self.combine_W = nn.Parameter(torch.eye(output_dim))
-        self.combin_b = nn.Parameter(torch.zeros(output_dim))
+        self.combine_b = nn.Parameter(torch.zeros(output_dim))
 
     def optimize_degrees(self, x_data: torch.Tensor, y_data: torch.Tensor, train_coeffs: bool) -> None:
         """Use QUBO to select optimal degrees for each neuron"""
-        print(f'\nKANLayer optimize_degrees input shape: {x_data.shape}')
+        #print(f'\nKANLayer optimize_degrees input shape: {x_data.shape}')
         from pyqubo import Array
         import neal
 
@@ -117,10 +117,10 @@ class KANLayer(nn.Module):
             neuron = self.neurons[neuron_idx]
             degree_coeffs[neuron_idx] = {}
             for d in range(self.max_degree + 1):
-                print(f"\nBefore transform - x_data shape: {x_data.shape}")
+                #print(f"\nBefore transform - x_data shape: {x_data.shape}")
                 # Get transform matrix [batch_size, d+1]
                 X = neuron._compute_cumulative_transform(x_data, d)
-                print(f"After transform - X shape: {X.shape}")
+                #print(f"After transform - X shape: {X.shape}")
                 # Solve least squares: X @ β = y
                 coeffs = torch.linalg.lstsq(X, y_data).solution  # [(d+1), 1]
                 degree_coeffs[neuron_idx][d] = coeffs
@@ -163,7 +163,7 @@ class KANLayer(nn.Module):
         # Now apply the "big W" for combining => shape [batch_size, output_dim]
         # Then add a bias for each dimension
         # a reminder that the bigW here is a vector with w_i for each of the neuron_i(x)s
-        return torch.matmul(stack_out, self.combine_W) + self.combin_b
+        return torch.matmul(stack_out, self.combine_W) + self.combine_b
 class FixedKAN(nn.Module):
     """
     Complete Fixed Architecture KAN
@@ -184,9 +184,9 @@ class FixedKAN(nn.Module):
     def optimize(self, x_data: torch.Tensor, y_data: torch.Tensor) -> None:
         """Optimize degrees for all layers"""
         current_input = x_data
-        print(f'Initial x_data shape: {x_data.shape}')
+        #print(f'Initial x_data shape: {x_data.shape}')
         for i, layer in enumerate(self.layers):
-            print(f'\nLayer {i} input shape: {current_input.shape}')
+            #print(f'\nLayer {i} input shape: {current_input.shape}')
             # For last layer use y_data, otherwise use intermediate target
             if i == len(self.layers) - 1:
                 target = y_data
@@ -198,7 +198,7 @@ class FixedKAN(nn.Module):
             # Update input for next layer
             with torch.no_grad():
                 current_input = layer(current_input)
-                print(f'Layer {i} output shape: {current_input.shape}')
+                #print(f'Layer {i} output shape: {current_input.shape}')
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass through all layers"""
@@ -268,7 +268,7 @@ class FixedKAN(nn.Module):
         :return:
         """
         if do_qubo:
-            print('[(train_model)] Running QUBO-based optimize first...')
+            #print('[(train_model)] Running QUBO-based optimize first...')
             self.optimize(x_data, y_data)
         params_to_train = []
         for layer in self.layers:
