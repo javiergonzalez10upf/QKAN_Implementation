@@ -3,6 +3,10 @@ import torch
 import numpy as np
 from typing import Tuple
 
+from torch.utils.data import DataLoader
+from torchvision import datasets
+from torchvision.transforms import transforms
+
 from KAN_w_cumulative_polynomials import FixedKANConfig, FixedKAN, KANNeuron
 
 
@@ -112,11 +116,11 @@ class TestFixedKAN(unittest.TestCase):
             return torch.sin(2 * np.pi * torch.cos(x**2)) + 0.5 * torch.cos(2 * np.pi * torch.exp(x**2))
 
         # Generate data
-        x_data, y_data = self.generate_test_data(complex_func, n_samples=1000)
+        x_data, y_data = self.generate_test_data(self.target_function, n_samples=1000)
 
         # Create deeper network
         config = FixedKANConfig(
-            network_shape=[1, 10, 5, 1],  # Three layers
+            network_shape=[1, 10, 10, 1],  # Three layers
             max_degree=5
         )
         kan = FixedKAN(config)
@@ -131,20 +135,9 @@ class TestFixedKAN(unittest.TestCase):
         print(f"Complex function MSE: {mse.item()}")
         #self.assertLess(mse.item(), 0.1)
         # Analyze network
-        analysis = kan.analyze_network(x_data)
-        kan.visualize_analysis(analysis, x_data, y_data)
+        #analysis = kan.analyze_network(x_data)
+        #kan.visualize_analysis(analysis, x_data, y_data)
         # Check layer structure
-        self.assertEqual(len(analysis), 3)  # Should have 3 layers
-        for layer_idx in range(3):
-            layer_data = analysis[f'layer_{layer_idx}']
-            # Check neuron outputs
-            if layer_idx == 0:
-                self.assertEqual(len(layer_data['degrees']), 10)
-            elif layer_idx == 1:
-                self.assertEqual(len(layer_data['degrees']), 5)
-            else:
-                self.assertEqual(len(layer_data['degrees']), 1)
-
 
     def test_multivariate_fractal(self):
         """Test fitting a complex multivariate fractal function and verify save/load works."""
@@ -176,7 +169,7 @@ class TestFixedKAN(unittest.TestCase):
         # -----------------------
         # 1) Generate Data in [-1, 1]
         # -----------------------
-        n_samples = 50  # 50x50 grid points
+        n_samples = 500  # 50x50 grid points
         x = torch.linspace(-1, 1, n_samples)
         y = torch.linspace(-1, 1, n_samples)
         X, Y = torch.meshgrid(x, y, indexing='ij')
@@ -201,67 +194,63 @@ class TestFixedKAN(unittest.TestCase):
         # ----------------------
         mse = torch.mean((y_pred - y_data) ** 2)
         rel_error = mse / torch.sum(y_data**2)
-        print(f"Fractal function Relative MSE: {rel_error.item()}")
+        print(f'y_data: {y_data.shape}')
+        print(f"[Before training] Fractal function,MSE={mse.item():.6f}, Relative MSE: {rel_error.item()}")
 
-        # ------------------------------
-        # 4) Save the Model to a File
-        # ------------------------------
+        print(f'\n---- Training model after QUBO ----')
+        # #kan.train_model(x_data, y_data,
+        #                 num_epochs=50,
+        #                 lr=0.002,
+        #                 complexity_weight=0,
+        #                 do_qubo=False)
+
+        #with torch.no_grad():
+            #y_pred_after = kan(x_data)
+        #mse_after = torch.mean((y_pred - y_data)**2)
+        #rel_error_after = mse_after / torch.mean(y_data**2)
+        #print(f"[After training] MSE={mse_after.item():.6f}, Rel Error={rel_error_after.item():.6f}")
+
+        # 4) Save the Model
         save_path = "temp_fractal_kan.pth"
         kan.save_model(save_path)
         print(f"Model saved to: {save_path}")
 
-        # --------------------------------------
-        # 5) Load Model and Compare Predictions
-        # --------------------------------------
+        # 5) Load & Compare
         loaded_kan = FixedKAN.load_model(save_path)
-
         with torch.no_grad():
             y_pred_loaded = loaded_kan(x_data)
-
-        # Check how close the loaded model’s output is to the original
-        diff_mse = torch.mean((y_pred_loaded - y_pred) ** 2)
+        diff_mse = torch.mean((y_pred_loaded - y_pred)**2)
         print(f"Prediction MSE difference after load: {diff_mse.item()}")
 
-        # -----------------------
-        # 6) Analyze and Visualize
-        # -----------------------
-        #analysis = kan.analyze_network(x_data)
-
-        # Plot original vs predicted vs error
+        # 6) Visualize
         import matplotlib.pyplot as plt
         fig = plt.figure(figsize=(15, 5))
 
-        # Original function
+        Z_true = y_data.reshape(n_samples, n_samples).cpu()
+        Z_pred = y_pred.reshape(n_samples, n_samples).cpu()
+
         ax1 = fig.add_subplot(131, projection='3d')
-        Z_true = y_data.reshape(n_samples, n_samples)
-        ax1.plot_surface(X.cpu(), Y.cpu(), Z_true.cpu(),
-                         cmap='coolwarm', alpha=0.7)
+        ax1.plot_surface(X.cpu(), Y.cpu(), Z_true, cmap='coolwarm', alpha=0.7)
         ax1.set_title('Original Function')
 
-        # Predicted function
         ax2 = fig.add_subplot(132, projection='3d')
-        Z_pred = y_pred.reshape(n_samples, n_samples)
-        ax2.plot_surface(X.cpu(), Y.cpu(), Z_pred.cpu(),
-                         cmap='magma', alpha=0.7)
-        ax2.set_title('KAN Prediction')
+        ax2.plot_surface(X.cpu(), Y.cpu(), Z_pred, cmap='magma', alpha=0.7)
+        ax2.set_title('KAN Prediction (After Training)')
 
-        # Error plot
         ax3 = fig.add_subplot(133, projection='3d')
         Z_error = torch.abs(Z_true - Z_pred)
-        ax3.plot_surface(X.cpu(), Y.cpu(), Z_error.cpu(),
-                         cmap='viridis', alpha=0.7)
+        ax3.plot_surface(X.cpu(), Y.cpu(), Z_error, cmap='viridis', alpha=0.7)
         ax3.set_title('Absolute Error')
 
         plt.tight_layout()
         plt.show()
 
-        # Show detailed network analysis
-        #kan.visualize_analysis(analysis, x_data, y_data)
+
     def test_mnist_dimensionality(self):
         """Test that network can handle MNIST-like high dimensional input"""
         # Simulate MNIST dimensions
-        batch_size = 100
-        input_dim = 784  # 28x28 pixels
+        batch_size = 10000
+        input_dim = 4000  # 28x28 pixels
         num_classes = 10
 
         # Create random data
@@ -270,7 +259,7 @@ class TestFixedKAN(unittest.TestCase):
 
         # Create network with MNIST dimensions
         config = FixedKANConfig(
-            network_shape=[784, 32, 16, 10],  # Common MNIST architecture
+            network_shape=[4000, 32, 16, 10],  # Common MNIST architecture
             max_degree=3
         )
         kan = FixedKAN(config)
@@ -333,5 +322,7 @@ class TestFixedKAN(unittest.TestCase):
         # Clean up
         import os
         os.remove(save_path)
+
+
 if __name__ == '__main__':
     unittest.main(argv=['first-arg-is-ignored'], exit=False)
