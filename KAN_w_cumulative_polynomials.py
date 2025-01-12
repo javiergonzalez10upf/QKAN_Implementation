@@ -21,7 +21,7 @@ class FixedKANConfig:
 
     # For partial QUBO
     skip_qubo_for_hidden: bool = False
-    default_hidden_degree: int = 2       # default polynomial degree for hidden layers (if skipping QUBO)
+    default_hidden_degree: int = 4       # default polynomial degree for hidden layers (if skipping QUBO)
 
 
 class KANNeuron(nn.Module):
@@ -292,3 +292,59 @@ class FixedKAN(nn.Module):
             print(f"Epoch {epoch+1}/{num_epochs}, Loss={loss.item():.6f}, MSE={mse.item():.6f}")
         print("[(train_model)] Done training!")
 
+    def train_model_cross_entropy(
+            self,
+            x_data: torch.Tensor,
+            y_data_int: torch.Tensor,       # integer class labels, shape = [batch_size]
+            y_data_onehot: torch.Tensor,    # one-hot, shape = [batch_size, num_classes] (for QUBO)
+            num_epochs: int = 50,
+            lr: float = 1e-3,
+            complexity_weight: float = 0.1,
+            do_qubo: bool = True
+    ):
+        """
+        1) (Optionally) run QUBO-based optimize() using y_data_onehot (like before).
+        2) Gather trainable parameters (including coefficients if config.trainable_coefficients=True).
+        3) Compute cross-entropy loss with the final logits vs. integer labels (y_data_int).
+
+        Typical usage example:
+          # y_data_onehot => for QUBO
+          # y_data_int    => same labels but as class indices
+          qkan.train_model_cross_entropy(x_data, y_data_int, y_data_onehot, ...)
+        """
+
+        # 1) QUBO on one-hot, same as always
+        if do_qubo:
+            self.optimize(x_data, y_data_onehot)
+
+        # 2) Gather trainable params
+        params_to_train = []
+        for layer in self.layers:
+            params_to_train.extend([layer.combine_W, layer.combine_b])
+            for neuron in layer.neurons:
+                params_to_train.extend([neuron.w, neuron.b])
+                if self.config.trainable_coefficients and (neuron.coefficients is not None):
+                    params_to_train.extend(list(neuron.coefficients))
+
+        optimizer = torch.optim.Adam(params_to_train, lr=lr)
+
+        # 3) Cross-entropy training
+        for epoch in range(num_epochs):
+            optimizer.zero_grad()
+
+            # logits => [batch_size, num_classes]
+            logits = self.forward(x_data)
+
+            # cross_entropy expects "logits" + integer labels => shape [batch_size]
+            # Important: If your final layer has shape [batch_size, 10], we do:
+            ce_loss = nn.functional.cross_entropy(logits, y_data_int.long())
+
+            w_norm = 0.0
+            # optionally do L2 penalty on w
+            loss = ce_loss + complexity_weight*w_norm
+            loss.backward()
+            optimizer.step()
+
+            print(f"[CE Training] Epoch {epoch+1}/{num_epochs}, Loss={loss.item():.6f}, CE={ce_loss.item():.6f}")
+
+        print("[train_model_cross_entropy] Done training!")
