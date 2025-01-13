@@ -27,7 +27,7 @@ class TestQKANonCIFAR10(unittest.TestCase):
         # 1) QKAN Config
         # ---------------------------
         self.qkan_config = FixedKANConfig(
-            network_shape=[3072, 32, 16, 10],
+            network_shape=[3072, 32, 32, 10],
             max_degree=7,
             complexity_weight=0.0,
             trainable_coefficients=False,
