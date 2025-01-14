@@ -293,7 +293,7 @@ class TestJaneStreetModels(unittest.TestCase):
             plot_path = f"./models_janestreet/lightgbm_loss_{r2_val:.4f}_{timestamp}.png"
             plt.savefig(plot_path)
             print(f"Saved LightGBM training curve: {plot_path}")
-            # plt.show()
+            plt.show()
 
 
 if __name__ == "__main__":
