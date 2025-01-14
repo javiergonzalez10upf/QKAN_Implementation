@@ -219,12 +219,12 @@ class FixedKAN(nn.Module):
         """
         current = x_data
         # 1) Subsample if dataset is huge
-        max_qubo_samples = 1000
-        if x_data.shape[0] > max_qubo_samples:
-            # pick a random subset of indices
-            idx = torch.randperm(x_data.shape[0])[:max_qubo_samples]
-            current = x_data[idx]
-            y_data = y_data[idx]
+        # max_qubo_samples = 1000
+        # if x_data.shape[0] > max_qubo_samples:
+        #     # pick a random subset of indices
+        #     idx = torch.randperm(x_data.shape[0])[:max_qubo_samples]
+        #     current = x_data[idx]
+        #     y_data = y_data[idx]
 
         for i, layer in enumerate(self.layers):
             is_last = (i == len(self.layers) - 1)
