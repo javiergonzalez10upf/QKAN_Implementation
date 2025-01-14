@@ -28,7 +28,7 @@ class TestQKANonCIFAR10(unittest.TestCase):
         # ---------------------------
         self.qkan_config = FixedKANConfig(
             network_shape=[3072, 32, 32, 10],
-            max_degree=7,
+            max_degree=5,
             complexity_weight=0.0,
             trainable_coefficients=False,
             skip_qubo_for_hidden=False
@@ -93,7 +93,7 @@ class TestQKANonCIFAR10(unittest.TestCase):
 
         # 2) MSE training
         num_epochs = 500
-        lr = 1e-4
+        lr = 1e-3
         train_losses = []
         optimizer = None  # We'll replicate the train loop manually to record losses
 
@@ -194,8 +194,8 @@ class TestQKANonCIFAR10(unittest.TestCase):
         qkan.optimize(self.x_train, self.y_train_onehot)
 
         # Now cross-entropy training on integer labels
-        num_epochs = 500
-        lr = 1e-4
+        num_epochs = 1000
+        lr = 1e-3
         train_losses = []
         from torch.optim import Adam
         optimizer = Adam(self._gather_trainable_params(qkan), lr=lr)

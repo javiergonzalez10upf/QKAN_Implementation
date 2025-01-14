@@ -8,7 +8,6 @@ from matplotlib import pyplot as plt
 from scipy.interpolate import griddata
 from torch import Tensor
 
-
 @dataclass
 class FixedKANConfig:
     """
@@ -71,6 +70,7 @@ class KANNeuron(nn.Module):
         alpha = x.matmul(self.w) + self.b  # [batch_size]
         transforms = []
         for d_i in range(degree + 1):
+            # Chebyshev T_d: torch.special.chebyshev_polynomial_t
             t_d = torch.special.chebyshev_polynomial_t(alpha, n=d_i)
             transforms.append(t_d.unsqueeze(1))  # [batch_size,1]
         return torch.cat(transforms, dim=1)      # [batch_size, (d+1)]
@@ -130,9 +130,12 @@ class KANLayer(nn.Module):
                 degree_coeffs[i][d_i] = coeffs
                 H += mse * q[i, d_i]
 
-        # One-hot constraint => exactly one degree per neuron
+
+        # 2) One-hot
+        #    automatically figure out a scale or just pick a big number
+        penalty_strength = 10000000000
         for i in range(self.output_dim):
-            H += 10.0 * (sum(q[i, d_i] for d_i in range(self.max_degree + 1)) - 1)**2
+            H += penalty_strength * (sum(q[i, d_i] for d_i in range(self.max_degree+1)) - 1)**2
 
         # Solve QUBO
         model = H.compile()
@@ -144,17 +147,56 @@ class KANLayer(nn.Module):
         # Assign selected degrees & set coefficients
         for i, neuron in enumerate(self.neurons):
             for d_i in range(self.max_degree + 1):
+                found_one = False
                 if best_sample[f'q[{i}][{d_i}]'] == 1:
+                    found_one=True
                     neuron.selected_degree[0] = d_i
                     coeffs_list = degree_coeffs[i][d_i].squeeze(-1)  # shape [d_i+1]
                     neuron.set_coefficients(coeffs_list, train_coeffs)
                     break
-
+                # if not found_one:
+                #     print(f' -> For neuron {i}, no degree was set to 1!')
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # Each neuron => [batch_size,1], cat => [batch_size, output_dim]
+        # Each neuron => [batch_size,1], then cat => [batch_size, output_dim]
         outs = [nr(x) for nr in self.neurons]
         stack_out = torch.cat(outs, dim=1)  # [batch_size, output_dim]
         return stack_out.mm(self.combine_W) + self.combine_b
+
+
+# ----------------------------
+# PCA-based dimension alignment
+# ----------------------------
+def autoencoder_dim_align(x_data: torch.Tensor, out_dim: int) -> torch.Tensor:
+    """
+    If x_data.shape[1] == out_dim, return as-is.
+    If x_data.shape[1] >  out_dim, do PCA to reduce dimensions => [batch_size, out_dim].
+    If x_data.shape[1] <  out_dim, replicate columns until we have out_dim.
+
+    Returns a new tensor of shape [batch_size, out_dim].
+    """
+    B, in_dim = x_data.shape
+    if in_dim == out_dim:
+        return x_data  # no change needed
+
+    elif in_dim > out_dim:
+        # PCA dimension reduction => out_dim
+        # For large data, might be heavy in memory/time, but it's more principled
+        from sklearn.decomposition import PCA
+        x_cpu = x_data.detach().cpu().numpy()   # to NumPy
+        pca = PCA(n_components=out_dim)
+        x_reduced = pca.fit_transform(x_cpu)    # shape [batch_size, out_dim]
+        # Convert back to torch
+        x_reduced_t = torch.from_numpy(x_reduced).to(
+            device=x_data.device, dtype=x_data.dtype
+        )
+        return x_reduced_t
+
+    else:
+        # in_dim < out_dim => replicate columns
+        repeats = (out_dim // in_dim) + 1
+        expanded = x_data.repeat(1, repeats)  # shape [batch_size, repeats*in_dim]
+        expanded = expanded[:, :out_dim]      # slice first out_dim columns
+        return expanded
 
 
 class FixedKAN(nn.Module):
@@ -176,6 +218,14 @@ class FixedKAN(nn.Module):
         - Final layer  => target is 'y_data'
         """
         current = x_data
+        # 1) Subsample if dataset is huge
+        max_qubo_samples = 1000
+        if x_data.shape[0] > max_qubo_samples:
+            # pick a random subset of indices
+            idx = torch.randperm(x_data.shape[0])[:max_qubo_samples]
+            current = x_data[idx]
+            y_data = y_data[idx]
+
         for i, layer in enumerate(self.layers):
             is_last = (i == len(self.layers) - 1)
 
@@ -184,23 +234,26 @@ class FixedKAN(nn.Module):
                 layer.optimize_degrees(current, y_data, train_coeffs=self.config.trainable_coefficients)
             else:
                 if self.config.skip_qubo_for_hidden:
-                    # Just set each neuron to default_hidden_degree, with zero or random coeffs
+                    # Just set each neuron to default_hidden_degree
                     for neuron in layer.neurons:
                         neuron.selected_degree[0] = self.config.default_hidden_degree
                         d_plus_1 = neuron.degree + 1
-                        # If the config says train coefficients, we create them as trainable
                         neuron.coefficients = nn.ParameterList([
                             nn.Parameter(torch.zeros(()), requires_grad=self.config.trainable_coefficients)
                             for _ in range(d_plus_1)
                         ])
                 else:
                     # QUBO for hidden => target = current layer input => shape [batch_size, layer.output_dim]
+                    #  => we do PCA if in_dim > out_dim, replicate if in_dim < out_dim
+                    #  => if in_dim == out_dim => pass as is
+                    aligned_targets = autoencoder_dim_align(current, layer.output_dim)
                     layer.optimize_degrees(
                         current,
-                        current,  # auto-encoder style => hidden tries to reconstruct its own input
+                        aligned_targets,  # not the raw "current" => dimension-aligned
                         train_coeffs=self.config.trainable_coefficients
                     )
 
+            # Forward pass => get new 'current' for the next layer
             with torch.no_grad():
                 current = layer(current)
 
@@ -312,12 +365,9 @@ class FixedKAN(nn.Module):
           # y_data_int    => same labels but as class indices
           qkan.train_model_cross_entropy(x_data, y_data_int, y_data_onehot, ...)
         """
-
-        # 1) QUBO on one-hot, same as always
         if do_qubo:
             self.optimize(x_data, y_data_onehot)
 
-        # 2) Gather trainable params
         params_to_train = []
         for layer in self.layers:
             params_to_train.extend([layer.combine_W, layer.combine_b])
@@ -328,23 +378,15 @@ class FixedKAN(nn.Module):
 
         optimizer = torch.optim.Adam(params_to_train, lr=lr)
 
-        # 3) Cross-entropy training
         for epoch in range(num_epochs):
             optimizer.zero_grad()
-
-            # logits => [batch_size, num_classes]
-            logits = self.forward(x_data)
-
-            # cross_entropy expects "logits" + integer labels => shape [batch_size]
-            # Important: If your final layer has shape [batch_size, 10], we do:
+            logits = self.forward(x_data)  # [batch_size, num_classes]
             ce_loss = nn.functional.cross_entropy(logits, y_data_int.long())
 
             w_norm = 0.0
-            # optionally do L2 penalty on w
             loss = ce_loss + complexity_weight*w_norm
             loss.backward()
             optimizer.step()
 
             print(f"[CE Training] Epoch {epoch+1}/{num_epochs}, Loss={loss.item():.6f}, CE={ce_loss.item():.6f}")
-
         print("[train_model_cross_entropy] Done training!")

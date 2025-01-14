@@ -102,7 +102,7 @@ def approximate_mlp_for_param_count(
         input_dim: int,
         target_dim: int,
         desired_params: int,
-        hidden_init: int = 32
+        hidden_init: int = 64
     ) -> nn.Module:
     """
     Build a small MLP that tries to match the desired_params count. We'll
@@ -172,12 +172,8 @@ def experiment_covertype_classification():
     desired_params = 10000
 
     # Build MLP
-    mlp_model = approximate_mlp_for_param_count(
-        input_dim=X_train.shape[1],
-        target_dim=len(np.unique(y)),
-        desired_params=desired_params,
-        hidden_init=32
-    )
+    mlp_model = approximate_mlp_for_param_count(input_dim=X_train.shape[1], target_dim=len(np.unique(y)),
+                                                desired_params=desired_params, hidden_init=64)
     mlp_params = count_parameters(mlp_model)
     print(f"[MLP] param_count ~ {mlp_params}")
 
@@ -191,7 +187,7 @@ def experiment_covertype_classification():
     y_val_t = torch.tensor(y_val, dtype=torch.long)
 
     print("Training MLP for 10 epochs ...")
-    for epoch in range(10):
+    for epoch in range(100):
         mlp_model.train()
         mlp_optimizer.zero_grad()
         logits = mlp_model(X_tr_t)
@@ -244,7 +240,7 @@ def experiment_covertype_classification():
         x_data=X_tr_t,
         y_data_int=y_tr_t,
         y_data_onehot=y_train_onehot,
-        num_epochs=10,
+        num_epochs=100,
         lr=1e-3,
         complexity_weight=0.0,
         do_qubo=True
@@ -300,12 +296,8 @@ def experiment_house_sales_regression():
     # 3.1) MLP with ~ desired params
     desired_params = 10000
 
-    mlp_model = approximate_mlp_for_param_count(
-        input_dim=X_train.shape[1],
-        target_dim=1,
-        desired_params=desired_params,
-        hidden_init=32
-    )
+    mlp_model = approximate_mlp_for_param_count(input_dim=X_train.shape[1], target_dim=1, desired_params=desired_params,
+                                                hidden_init=64)
     mlp_params = count_parameters(mlp_model)
     print(f"[MLP] param_count ~ {mlp_params}")
 
@@ -319,7 +311,7 @@ def experiment_house_sales_regression():
     y_val_t = torch.tensor(y_val, dtype=torch.float32).unsqueeze(-1)
 
     print("Training MLP for 10 epochs (Regression) ...")
-    for epoch in range(10):
+    for epoch in range(1000):
         mlp_model.train()
         mlp_optimizer.zero_grad()
         preds = mlp_model(X_tr_t)
@@ -399,7 +391,7 @@ def main():
     # 1) Classification test on covertype
     experiment_covertype_classification()
     # 2) Regression test on house_sales
-    experiment_house_sales_regression()
+    #experiment_house_sales_regression()
     print("===== END =====")
 
 

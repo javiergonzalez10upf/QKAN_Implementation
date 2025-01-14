@@ -91,7 +91,7 @@ class TestJaneStreetModels(unittest.TestCase):
         # QKAN config
         self.qkan_config = FixedKANConfig(
             network_shape=[self.input_dim,10, 1],
-            max_degree=3,
+            max_degree=5,
             complexity_weight=0.0,
             trainable_coefficients=False,
             skip_qubo_for_hidden=False,
