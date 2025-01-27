@@ -162,6 +162,10 @@ class TestJaneStreetModels(unittest.TestCase):
         self.mlp = nn.Sequential(
             nn.Linear(self.input_dim, 64),
             nn.ReLU(),
+            nn.Linear(64, 64),
+            nn.ReLU(),
+            nn.Linear(64, 64),
+            nn.ReLU(),
             nn.Linear(64, 1)
         )
 
@@ -361,24 +365,30 @@ class TestJaneStreetModels(unittest.TestCase):
             plt.show()
     def test_4_compare_kan_mlp_depths(self):
         """
-        Compare CP-KAN vs MLPs of depths 2,3,4,5 on Weighted MSE + Weighted R².
-        We'll produce a single figure with R² vs. epochs (both train and val).
+        Compare CP-KAN vs MLPs of depths 2,3,4,5 on Weighted MSE + Weighted R²,
+        using a fixed hidden_size=64 for MLP. This avoids the param search that
+        can blow up memory.
+        We'll produce a single figure with Weighted R² vs. epoch for train & val.
         """
 
-        # ------------------------
-        # 1) Prepare CP-KAN
-        # ------------------------
+        import math
+        import torch
+        import numpy as np
+        import matplotlib.pyplot as plt
+
+        # ========== 1) CP-KAN Setup & Train ==========
         print("\n==== [CP-KAN] Weighted MSE Regression ====")
         qkan = FixedKAN(self.qkan_config)
 
-        # Do QUBO-based degree selection (unweighted least squares)
+        # 1.1) QUBO-based degree selection (unweighted)
         qkan.optimize(self.x_train_torch, self.y_train_torch.unsqueeze(-1))
 
-        # We'll train for 500 epochs, same as your existing code
+        # 1.2) Weighted MSE training
         num_epochs = 500
         lr = 1e-3
+        batch_size = 512
 
-        # Gather all trainable params
+        # gather trainable params
         params_to_train = []
         for layer in qkan.layers:
             params_to_train.extend([layer.combine_W, layer.combine_b])
@@ -387,72 +397,87 @@ class TestJaneStreetModels(unittest.TestCase):
                 if (self.qkan_config.trainable_coefficients and
                         neuron.coefficients is not None):
                     params_to_train.extend(list(neuron.coefficients))
+
         cpk_param_count = sum(p.numel() for p in params_to_train)
         print(f"[CP-KAN] param_count={cpk_param_count}")
 
-        optimizer = torch.optim.Adam(params_to_train, lr=lr)
+        optimizer_kan = torch.optim.Adam(params_to_train, lr=lr)
 
-        # We'll track Weighted R² each epoch for train & val
+        # Track Weighted R²
         qkan_train_r2 = []
         qkan_val_r2   = []
 
         for epoch in range(num_epochs):
-            optimizer.zero_grad()
-            y_pred = qkan(self.x_train_torch).squeeze(-1)
-            numerator = torch.sum(self.w_train_torch * (self.y_train_torch - y_pred)**2)
-            denominator = torch.sum(self.w_train_torch)
-            loss = numerator / (denominator + 1e-12)
-            loss.backward()
-            optimizer.step()
+            # Mini-batch Weighted MSE
+            qkan.train()
+            n_train = len(self.x_train_torch)
+            n_batches = math.ceil(n_train / batch_size)
 
-            # Compute Weighted R² on train
+            for i in range(n_batches):
+                start = i*batch_size
+                end   = (i+1)*batch_size
+                x_batch = self.x_train_torch[start:end]
+                y_batch = self.y_train_torch[start:end]
+                w_batch = self.w_train_torch[start:end]
+
+                optimizer_kan.zero_grad()
+                y_pred_batch = qkan(x_batch).squeeze(-1)
+                numerator = torch.sum(w_batch*(y_batch - y_pred_batch)**2)
+                denominator = torch.sum(w_batch)
+                loss = numerator/(denominator+1e-12)
+                loss.backward()
+                optimizer_kan.step()
+
+            # Evaluate Weighted R²
+            qkan.eval()
             with torch.no_grad():
-                y_pred_train_np = y_pred.detach().cpu().numpy()
-                y_true_train_np = self.y_train_torch.cpu().numpy()
-                w_train_np      = self.w_train_torch.cpu().numpy()
-                r2_train = weighted_r2(y_true_train_np, y_pred_train_np, w_train_np)
+                y_pred_train = qkan(self.x_train_torch).squeeze(-1).cpu().numpy()
+                r2_train = weighted_r2(self.y_train_np, y_pred_train, self.w_train_np)
                 qkan_train_r2.append(r2_train)
 
-                # Weighted R² on validation
                 y_pred_val = qkan(self.x_val_torch).squeeze(-1).cpu().numpy()
-                y_true_val = self.y_val_torch.cpu().numpy()
-                w_val      = self.w_val_torch.cpu().numpy()
-                r2_val     = weighted_r2(y_true_val, y_pred_val, w_val)
+                r2_val = weighted_r2(self.y_val_np, y_pred_val, self.w_val_np)
                 qkan_val_r2.append(r2_val)
 
             if (epoch+1) % 50 == 0:
-                print(f"[CP-KAN] Epoch {epoch+1}/{num_epochs}, Weighted MSE={loss.item():.6f}, Train R²={r2_train:.4f}, Val R²={r2_val:.4f}")
+                print(f"[CP-KAN] Epoch {epoch+1}/{num_epochs}, Train R²={r2_train:.4f}, Val R²={r2_val:.4f}")
 
         # Final CP-KAN metrics on val
         final_r2_val = qkan_val_r2[-1]
         print(f"[CP-KAN] Final Val Weighted R²={final_r2_val:.4f}")
 
-        # ------------------------
-        # 2) Prepare MLPs of depths 2..5 ~ same param count
-        # ------------------------
-        target_params = cpk_param_count  # matching CP-KAN
+        # ========== 2) MLPs of Depth=2..5 (Fixed hidden_size=64) ==========
+
+        def build_simple_mlp(in_dim, out_dim, depth=2, hidden_size=64):
+            """
+            Build a straightforward MLP with `depth` hidden layers, each of width `hidden_size`.
+            No param search.
+            """
+            layers = []
+            curr_dim = in_dim
+            for _ in range(depth):
+                layers.append(nn.Linear(curr_dim, hidden_size))
+                layers.append(nn.ReLU())
+                curr_dim = hidden_size
+            layers.append(nn.Linear(curr_dim, out_dim))
+            return nn.Sequential(*layers)
+
         mlp_depths = [2, 3, 4, 5]
         mlp_models = {}
         mlp_param_counts = {}
-        batch_size = 512
+
+        # Build each MLP
         for d in mlp_depths:
-            mlp_d = build_mlp_for_depth(
-                input_dim=self.input_dim,
-                output_dim=1,
-                depth=d,
-                target_params=target_params
-            )
+            mlp_d = build_simple_mlp(self.input_dim, 1, depth=d, hidden_size=64)
             pc = count_parameters(mlp_d)
             mlp_models[d] = mlp_d
             mlp_param_counts[d] = pc
-            print(f"MLP(depth={d}): param_count={pc}")
+            print(f"[MLP-depth={d}] param_count={pc}")
 
         # We'll store Weighted R² histories
         mlp_r2_histories = {d: {"train": [], "val": []} for d in mlp_depths}
 
-        # ------------------------
-        # 3) Train each MLP
-        # ------------------------
+        # ========== 3) Train each MLP with mini-batches ==========
         for d in mlp_depths:
             print(f"\n==== [MLP-depth={d}] Weighted MSE Regression ====")
             mlp = mlp_models[d]
@@ -482,7 +507,7 @@ class TestJaneStreetModels(unittest.TestCase):
                     loss.backward()
                     optimizer_mlp.step()
 
-                # Evaluate Weighted R²
+                # Evaluate Weighted R² once per epoch
                 mlp.eval()
                 with torch.no_grad():
                     y_pred_train = mlp(self.x_train_torch).squeeze(-1).cpu().numpy()
@@ -499,15 +524,15 @@ class TestJaneStreetModels(unittest.TestCase):
             mlp_r2_histories[d]["train"] = train_r2_list
             mlp_r2_histories[d]["val"]   = val_r2_list
 
-        # ------------------------
-        # 4) Plot all on one figure
-        # ------------------------
+        # ========== 4) Plot all on one figure ==========
         epochs_range = range(1, num_epochs+1)
         plt.figure(figsize=(8,6))
 
         # CP-KAN lines
-        plt.plot(epochs_range, qkan_train_r2, label=f"CP-KAN (train) [{cpk_param_count} params]", color='blue')
-        plt.plot(epochs_range, qkan_val_r2,   label="CP-KAN (val)",  color='blue', linestyle='--')
+        plt.plot(epochs_range, qkan_train_r2,
+                 label=f"CP-KAN (train) [{cpk_param_count} params]", color='blue')
+        plt.plot(epochs_range, qkan_val_r2,
+                 label="CP-KAN (val)", color='blue', linestyle='--')
 
         color_map = {2:'orange', 3:'green', 4:'red', 5:'purple'}
 
@@ -516,17 +541,21 @@ class TestJaneStreetModels(unittest.TestCase):
             train_r2 = mlp_r2_histories[d]["train"]
             val_r2   = mlp_r2_histories[d]["val"]
             param_str = f"[{mlp_param_counts[d]} params]"
-            plt.plot(epochs_range, train_r2, label=f"MLP(d={d}) train {param_str}", color=color_map[d])
-            plt.plot(epochs_range, val_r2,   label=f"MLP(d={d}) val", color=color_map[d], linestyle='--')
+            plt.plot(epochs_range, train_r2,
+                     label=f"MLP(d={d}) train {param_str}",
+                     color=color_map[d])
+            plt.plot(epochs_range, val_r2,
+                     label=f"MLP(d={d}) val",
+                     color=color_map[d], linestyle='--')
 
-        plt.title("CP-KAN vs. MLP Depths (Weighted R² vs. Epoch)\nJane Street Example with Mini-Batching")
+        plt.title("CP-KAN vs. MLP Depths (Weighted R² vs. Epoch)\nJane Street Example (No Param Search)")
         plt.xlabel("Epoch")
         plt.ylabel("Weighted R²")
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
 
-        plot_path = f"./models_janestreet/comparison_cpk_mlp_depths_{datetime.now()}.png"
+        plot_path = f"./models_janestreet/comparison_cpk_mlp_depths_simple.png"
         plt.savefig(plot_path)
         plt.show()
         print(f"[Done] Combined plot saved => {plot_path}")
