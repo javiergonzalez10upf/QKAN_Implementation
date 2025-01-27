@@ -74,7 +74,8 @@ class DataPipeline:
 
         train_mask = df.get_column('date_id').is_in(train_dates).to_numpy()
         val_mask = df.get_column('date_id').is_in(val_dates).to_numpy()
-
+        print(f'training: min: {train_dates.min()},max: {train_dates.max()}')
+        print(f'val days: min: {val_dates.min()}, max: {val_dates.max()}')
         train_data = df.filter(train_mask).select([pl.col(f'{col}_normalized') for col in self.config.feature_cols])
         val_data = df.filter(val_mask).select([pl.col(f'{col}_normalized') for col in self.config.feature_cols])
 
